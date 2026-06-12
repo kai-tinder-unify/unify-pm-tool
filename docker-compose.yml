@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ascend-hub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ascend
+      POSTGRES_PASSWORD: ascend_dev_password
+      POSTGRES_DB: ascend_hub
+    ports:
+      - "5432:5432"
+    volumes:
+      - ascend_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ascend -d ascend_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ascend_pgdata:

@@ -1,0 +1,386 @@
+import { useEffect, useState } from 'react';
+import { api } from '../api';
+import { useFetch, useUsers } from '../hooks';
+import { useToast } from '../context/ToastContext';
+import { Spinner, ErrorNote, Modal } from '../components/ui';
+import type { Settings as SettingsType, User } from '../types';
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+export default function Settings() {
+  const toast = useToast();
+  const { data, loading, error, reload } = useFetch<SettingsType>('/api/settings');
+  const { allUsers, reload: reloadUsers } = useUsers(true);
+
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [smtpPass, setSmtpPass] = useState('');
+  const [bucketsText, setBucketsText] = useState('');
+  const [initiativesText, setInitiativesText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [userModal, setUserModal] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
+
+  useEffect(() => {
+    if (!data) return;
+    setForm({
+      defaultPingTime: data.defaultPingTime || '08:00',
+      pingEnabled: data.pingEnabled || 'true',
+      briefingDay: data.briefingDay || 'friday',
+      briefingTime: data.briefingTime || '16:00',
+      briefingEnabled: data.briefingEnabled || 'true',
+      smtpHost: data.smtpHost || '',
+      smtpPort: data.smtpPort || '587',
+      smtpUser: data.smtpUser || '',
+      smtpFrom: data.smtpFrom || '',
+      teamsWebhookUrl: data.teamsWebhookUrl || '',
+      briefingDistributionList: data.briefingDistributionList || '',
+    });
+    try {
+      setBucketsText((JSON.parse(data.buckets || '[]') as string[]).join('\n'));
+      setInitiativesText((JSON.parse(data.initiatives || '[]') as string[]).join('\n'));
+    } catch {
+      // keep empty on parse failure
+    }
+  }, [data]);
+
+  const set = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const body: Record<string, string> = {
+        ...form,
+        buckets: JSON.stringify(bucketsText.split('\n').map((s) => s.trim()).filter(Boolean)),
+        initiatives: JSON.stringify(initiativesText.split('\n').map((s) => s.trim()).filter(Boolean)),
+      };
+      if (smtpPass) body.smtpPass = smtpPass;
+      await api('/api/settings', { method: 'PUT', body });
+      toast.success('Settings saved');
+      setSmtpPass('');
+      reload();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testEmail = async () => {
+    try {
+      const res = await api<{ message: string }>('/api/settings/test-email', { method: 'POST', body: {} });
+      toast.success(res.message);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const testTeams = async () => {
+    try {
+      const res = await api<{ message: string }>('/api/settings/test-teams', { method: 'POST', body: {} });
+      toast.success(res.message);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  const toggleActive = async (u: User) => {
+    try {
+      await api(`/api/users/${u.id}`, { method: 'PUT', body: { isActive: !u.isActive } });
+      toast.success(u.isActive ? `${u.name} deactivated` : `${u.name} reactivated`);
+      reloadUsers();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
+  if (loading) return <Spinner />;
+  if (error) return <ErrorNote message={error} />;
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <h1 className="page-title">Settings</h1>
+
+      {/* User management */}
+      <section className="card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="section-title">User management</h2>
+          <button className="btn-primary" onClick={() => setUserModal({ open: true, user: null })}>
+            + Add user
+          </button>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-subtle">
+              <th className="th !px-0 pr-3">Name</th>
+              <th className="th !px-0 pr-3">Email</th>
+              <th className="th !px-0 pr-3">Role</th>
+              <th className="th !px-0 pr-3">Ping time</th>
+              <th className="th !px-0 pr-3">Status</th>
+              <th className="th !px-0"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.04]">
+            {allUsers.map((u) => (
+              <tr key={u.id} className={`row-hover ${u.isActive ? '' : 'opacity-50'}`}>
+                <td className="py-3 pr-3 font-medium text-ink">{u.name}</td>
+                <td className="py-3 pr-3 text-slate-400">{u.email}</td>
+                <td className="py-3 pr-3 capitalize text-slate-300">{u.role}</td>
+                <td className="py-3 pr-3">
+                  <span className="mono-meta">{u.pingTime || 'team default'}</span>
+                </td>
+                <td className="py-3 pr-3">
+                  {u.isActive ? (
+                    <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
+                      <span className="pill-dot bg-emerald-400" />
+                      Active
+                    </span>
+                  ) : (
+                    <span className="pill bg-white/[0.04] text-slate-400 border-white/[0.08]">
+                      <span className="pill-dot bg-slate-500" />
+                      Deactivated
+                    </span>
+                  )}
+                </td>
+                <td className="py-3 text-right whitespace-nowrap text-[13px] font-medium">
+                  <button
+                    className="text-accent px-2 py-1 rounded-md transition-colors hover:text-accent-hover hover:bg-accent/10 mr-1"
+                    onClick={() => setUserModal({ open: true, user: u })}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-slate-400 px-2 py-1 rounded-md transition-colors hover:text-ink hover:bg-white/[0.06]"
+                    onClick={() => toggleActive(u)}
+                  >
+                    {u.isActive ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Buckets & initiatives */}
+      <section className="card p-6 space-y-4">
+        <h2 className="section-title">Buckets &amp; initiatives</h2>
+        <p className="text-xs text-slate-500">One label per line. Changes apply everywhere immediately — no deploy needed.</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Buckets</label>
+            <textarea className="input" rows={4} value={bucketsText} onChange={(e) => setBucketsText(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Initiatives</label>
+            <textarea className="input" rows={4} value={initiativesText} onChange={(e) => setInitiativesText(e.target.value)} />
+          </div>
+        </div>
+      </section>
+
+      {/* Email */}
+      <section className="card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="section-title">Email (SMTP)</h2>
+          <button className="btn-secondary" onClick={testEmail}>
+            Send test email
+          </button>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Host</label>
+            <input className="input" value={form.smtpHost || ''} onChange={(e) => set('smtpHost', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Port</label>
+            <input className="input" value={form.smtpPort || ''} onChange={(e) => set('smtpPort', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Username</label>
+            <input className="input" value={form.smtpUser || ''} onChange={(e) => set('smtpUser', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Password {data?.smtpPassSet && <span className="text-emerald-400 normal-case">(set)</span>}</label>
+            <input
+              type="password"
+              className="input"
+              value={smtpPass}
+              onChange={(e) => setSmtpPass(e.target.value)}
+              placeholder={data?.smtpPassSet ? 'Leave blank to keep current' : ''}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="label">From address</label>
+            <input className="input" value={form.smtpFrom || ''} onChange={(e) => set('smtpFrom', e.target.value)} />
+          </div>
+        </div>
+      </section>
+
+      {/* Teams webhook */}
+      <section className="card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="section-title">Microsoft Teams webhook</h2>
+          <button className="btn-secondary" onClick={testTeams}>
+            Send test message
+          </button>
+        </div>
+        <div>
+          <label className="label">Channel webhook URL (briefing broadcasts)</label>
+          <input className="input" value={form.teamsWebhookUrl || ''} onChange={(e) => set('teamsWebhookUrl', e.target.value)} />
+        </div>
+      </section>
+
+      {/* Ping schedule */}
+      <section className="card p-6 space-y-4">
+        <h2 className="section-title">Daily check-in pings</h2>
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="label">Team-wide default ping time</label>
+            <input type="time" className="input" value={form.defaultPingTime || ''} onChange={(e) => set('defaultPingTime', e.target.value)} />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer pb-2">
+            <input
+              type="checkbox"
+              checked={form.pingEnabled === 'true'}
+              onChange={(e) => set('pingEnabled', e.target.checked ? 'true' : 'false')}
+            />
+            Daily pings enabled
+          </label>
+        </div>
+        <p className="text-xs text-slate-500">
+          Individual users can override their own ping time from their profile page.
+        </p>
+      </section>
+
+      {/* Briefing schedule */}
+      <section className="card p-6 space-y-4">
+        <h2 className="section-title">Weekly briefing schedule</h2>
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="label">Day of week</label>
+            <select className="input" value={form.briefingDay || 'friday'} onChange={(e) => set('briefingDay', e.target.value)}>
+              {DAYS.map((d) => (
+                <option key={d} value={d}>
+                  {d.charAt(0).toUpperCase() + d.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Time</label>
+            <input type="time" className="input" value={form.briefingTime || ''} onChange={(e) => set('briefingTime', e.target.value)} />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer pb-2">
+            <input
+              type="checkbox"
+              checked={form.briefingEnabled === 'true'}
+              onChange={(e) => set('briefingEnabled', e.target.checked ? 'true' : 'false')}
+            />
+            Briefing schedule enabled
+          </label>
+        </div>
+        <div>
+          <label className="label">Briefing distribution list (comma-separated emails)</label>
+          <textarea
+            className="input"
+            rows={2}
+            value={form.briefingDistributionList || ''}
+            onChange={(e) => set('briefingDistributionList', e.target.value)}
+            placeholder="leader1@unifyconsulting.com, leader2@unifyconsulting.com"
+          />
+        </div>
+      </section>
+
+      <div className="flex justify-end">
+        <button className="btn-primary" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save all settings'}
+        </button>
+      </div>
+
+      {userModal.open && (
+        <UserModal
+          user={userModal.user}
+          onClose={() => setUserModal({ open: false, user: null })}
+          onSaved={reloadUsers}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserModal({ user, onClose, onSaved }: { user: User | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [role, setRole] = useState(user?.role || 'member');
+  const [pingTime, setPingTime] = useState(user?.pingTime || '');
+  const [password, setPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (user) {
+        const body: Record<string, unknown> = { name, email, role, pingTime: pingTime || null };
+        if (password) body.password = password;
+        await api(`/api/users/${user.id}`, { method: 'PUT', body });
+        toast.success('User updated');
+      } else {
+        if (!password) {
+          toast.error('Password is required for new users');
+          setSaving(false);
+          return;
+        }
+        await api('/api/users', {
+          method: 'POST',
+          body: { name, email, role, pingTime: pingTime || null, password },
+        });
+        toast.success('User added');
+      }
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={user ? 'Edit user' : 'Add user'} onClose={onClose}>
+      <div className="space-y-4">
+        <div>
+          <label className="label">Name</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Role</label>
+            <select className="input" value={role} onChange={(e) => setRole(e.target.value as any)}>
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Preferred ping time</label>
+            <input type="time" className="input" value={pingTime} onChange={(e) => setPingTime(e.target.value)} />
+          </div>
+        </div>
+        <div>
+          <label className="label">{user ? 'Reset password (optional)' : 'Password'}</label>
+          <input type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

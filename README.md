@@ -1,0 +1,99 @@
+# Unify Ascend Task Hub
+
+Internal web application for Unify Consulting's Ascend team: task intake and tracking, multi-contributor time logging, automated PM check-ins, and analytics.
+
+Tasks are the unit of work — each carries the requesting leader, a bucket, an optional initiative, and a priority. Multiple people can contribute to the same task, each logging their own hours independently.
+
+**Stack:** React (Vite) + TypeScript + Tailwind · Node/Express + TypeScript · PostgreSQL + Prisma · Nodemailer + Teams webhook · node-cron · Recharts
+
+## Prerequisites
+
+- Node.js 20+ and npm
+- Docker Desktop (for local Postgres)
+
+## Local setup
+
+```bash
+# 1. Start Postgres
+docker compose up -d
+
+# 2. Install dependencies (root, server, client)
+npm install
+npm run setup
+
+# 3. Configure the server environment
+cd server
+copy .env.example .env        # macOS/Linux: cp .env.example .env
+# The defaults match docker-compose.yml — no edits needed for local dev.
+
+# 4. Create the schema and seed sample data
+npm run db:migrate            # runs prisma migrate dev (also generates the client)
+npm run db:seed
+
+# 5. Run both apps (from the repo root)
+cd ..
+npm run dev
+```
+
+- Client: http://localhost:5173 (proxies `/api` to the server)
+- Server: http://localhost:4000
+
+### Seeded logins
+
+| User | Email | Role | Password |
+|---|---|---|---|
+| Kai Tinder | ktinder@unifyconsulting.com | admin | `ascend123` |
+| Maya Castellanos | mcastellanos@unifyconsulting.com | member | `ascend123` |
+| Derek Whitfield | dwhitfield@unifyconsulting.com | member | `ascend123` |
+| Priya Raghunathan | praghunathan@unifyconsulting.com | member | `ascend123` |
+| Jordan Okafor | jokafor@unifyconsulting.com | member | `ascend123` |
+
+Maya (07:30) and Priya (09:00) have custom ping times; the rest use the team default.
+
+## Environment variables
+
+All server configuration lives in `server/.env` (see `server/.env.example` for the authoritative list):
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DATABASE_URL` | Postgres connection string | docker-compose local DB |
+| `PORT` | API port | `4000` |
+| `SESSION_SECRET` | Session cookie signing secret — change in production | dev placeholder |
+| `APP_URL` | Client origin, used for links in check-in emails | `http://localhost:5173` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email fallbacks (Settings page values take precedence) | empty |
+| `TEAMS_WEBHOOK_URL` | Teams webhook fallback (Settings page takes precedence) | empty |
+| `SCHEDULER_TIMEZONE` | Timezone for ping/briefing schedule evaluation | `America/Los_Angeles` |
+
+## Configuring email and Teams (from the app)
+
+1. Sign in as an admin and open **Settings**.
+2. **Email (SMTP):** enter host, port, username, password, and from address, then click **Send test email** (it sends to your own address).
+3. **Teams webhook:** create an Incoming Webhook on the target Teams channel, paste the URL, then click **Send test message**.
+4. **Briefing distribution list:** comma-separated emails that receive the weekly briefing.
+
+Values saved in Settings are stored in the database (`AppSetting`) and take precedence over `.env` fallbacks. No restart is required.
+
+## Roles
+
+| Capability | Admin | Member |
+|---|---|---|
+| View all tasks, assignments, briefings | ✓ | ✓ |
+| Create & edit tasks / update statuses | ✓ | ✓ |
+| Log & edit **own** hours (any date, incl. backdated) | ✓ | ✓ |
+| Edit/delete **anyone's** assignment | ✓ | — |
+| Delete tasks | ✓ | — |
+| User management, Settings | ✓ | — |
+| Generate/send briefings, send manual pings | ✓ | — |
+
+## PM automation
+
+- **Daily check-in pings:** one cron tick every 15 minutes checks which active users have a ping time (personal `pingTime`, else team `defaultPingTime`) in the current window, and emails each a single consolidated list of their active in-progress tasks. A user is never pinged twice within 20 hours. Admins can also click **Send pings now** on the Dashboard.
+- **Per-user ping times:** each user sets a preferred time on their **Profile** page; admins can set it in **Settings → User management**. Empty = team default.
+- **Weekly briefing:** generated on the configured day/time (or via **Generate now** on the Briefings page) summarizing the last 7 days of logged work, then sent via email and/or Teams — each channel toggleable at send time.
+
+## Deployment notes
+
+- Build everything with `npm run build`; the server serves `client/dist` when `NODE_ENV=production`, so a single Node process (plus Postgres) is all Azure App Service or Render needs.
+- Run `npm run db:deploy --prefix server` (Prisma `migrate deploy`) on release.
+- Auth is session-based behind an interface that can be swapped for Azure AD/SSO later: the only integration points are `POST /api/auth/login` and the `requireAuth` middleware (`server/src/middleware/auth.ts`).
+- The default in-memory session store is fine for a single instance; add a Postgres-backed store (e.g. `connect-pg-simple`) before scaling out.

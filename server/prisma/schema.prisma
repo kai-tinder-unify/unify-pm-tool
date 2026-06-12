@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  member
+}
+
+enum TaskStatus {
+  not_started
+  in_progress
+  blocked
+  complete
+}
+
+enum Priority {
+  high
+  medium
+  low
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(member)
+  isActive     Boolean  @default(true)
+  pingTime     String? // "HH:mm" 24h, user's preferred daily ping time; null = team default
+  createdAt    DateTime @default(now())
+
+  ownedTasks      Task[]           @relation("TaskOwner")
+  createdTasks    Task[]           @relation("TaskCreator")
+  assignments     TaskAssignment[]
+  checkIns        CheckIn[]
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  title            String
+  description      String?
+  requestedBy      String // leader name, free text
+  submittedAt      DateTime   @default(now())
+  status           TaskStatus @default(not_started)
+  priority         Priority   @default(medium)
+  isWip            Boolean    @default(false)
+  estimatedDueDate DateTime? // null when isWip is true or timeline unknown
+  targetStartDate  DateTime?
+  estimatedHours   Float?
+  bucket           String
+  initiative       String? // optional
+  ownerId          String?
+  owner            User?      @relation("TaskOwner", fields: [ownerId], references: [id])
+  createdById      String
+  createdBy        User       @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  assignments TaskAssignment[]
+  checkIns    CheckIn[]
+
+  @@index([status])
+  @@index([bucket])
+  @@index([ownerId])
+}
+
+model TaskAssignment {
+  id          String    @id @default(cuid())
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  startDate   DateTime?
+  endDate     DateTime? // null = still active
+  hoursLogged Float     @default(0)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([taskId, userId])
+  @@index([userId])
+}
+
+model WeeklyBriefing {
+  id           String    @id @default(cuid())
+  weekStart    DateTime
+  weekEnd      DateTime
+  content      String // markdown
+  generatedAt  DateTime  @default(now())
+  sentViaEmail Boolean   @default(false)
+  sentViaTeams Boolean   @default(false)
+  sentAt       DateTime?
+}
+
+model CheckIn {
+  id           String    @id @default(cuid())
+  taskId       String
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  sentAt       DateTime  @default(now())
+  channel      String    @default("email")
+  responseText String?
+  respondedAt  DateTime?
+
+  @@index([userId, sentAt])
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
