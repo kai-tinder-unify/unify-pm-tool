@@ -28,6 +28,11 @@ const icons: Record<string, ReactNode> = {
       <path d="M5.5 8.2l1.8 1.8 3.4-3.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  pulse: (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M1.5 8h3l1.5-4 2.5 8 1.5-4h4.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   analytics: (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
       <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-5M14 13.5V3" strokeLinecap="round" />
@@ -57,6 +62,7 @@ const sections: { header: string | null; items: { to: string; label: string; ico
   {
     header: 'Work',
     items: [
+      { to: '/pulse', label: 'Monday pulse', icon: 'pulse' },
       { to: '/tasks', label: 'Tasks', icon: 'requests' },
       { to: '/intake', label: 'New task', icon: 'intake' },
       { to: '/my-work', label: 'My work', icon: 'mywork' },

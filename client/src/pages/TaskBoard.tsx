@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useFetch, useLabels, useUsers } from '../hooks';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, Avatars, fmtDate } from '../components/ui';
+import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, Avatars, fmtDay } from '../components/ui';
 import type { Task, TaskStatus } from '../types';
 
 const KANBAN_COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'not_started', label: 'Not started' },
   { status: 'in_progress', label: 'In progress' },
+  { status: 'paused', label: 'Paused' },
   { status: 'blocked', label: 'Blocked' },
   { status: 'complete', label: 'Complete' },
 ];
@@ -120,6 +121,7 @@ export default function TaskBoard() {
           <option value="">All statuses</option>
           <option value="not_started">Not started</option>
           <option value="in_progress">In progress</option>
+          <option value="paused">Paused</option>
           <option value="blocked">Blocked</option>
           <option value="complete">Complete</option>
         </select>
@@ -134,7 +136,7 @@ export default function TaskBoard() {
       </div>
 
       {view === 'board' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           {KANBAN_COLUMNS.map((col) => {
             const items = filtered.filter((t) => t.status === col.status);
             return (
@@ -202,7 +204,7 @@ export default function TaskBoard() {
                       </span>
                     </td>
                     <td className="px-4 py-3 pr-5">
-                      <span className="mono-meta">{fmtDate(t.submittedAt)}</span>
+                      <span className="mono-meta">{fmtDay(t.submittedAt)}</span>
                     </td>
                   </tr>
                 );
@@ -232,7 +234,7 @@ function TaskCard({ task }: { task: Task }) {
           <PriorityBadge priority={task.priority} />
           {task.isWip && <WipPill />}
           {!task.isWip && task.estimatedDueDate && (
-            <span className="font-mono text-[11px] tabular-nums text-slate-500">{fmtDate(task.estimatedDueDate)}</span>
+            <span className="font-mono text-[11px] tabular-nums text-slate-500">{fmtDay(task.estimatedDueDate)}</span>
           )}
         </span>
         {contributors.length > 0 && <Avatars names={contributors} />}

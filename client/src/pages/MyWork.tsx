@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useFetch } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDate } from '../components/ui';
+import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDay } from '../components/ui';
 import LogHoursModal from '../components/LogHoursModal';
 import type { Task, Assignment } from '../types';
 
@@ -84,7 +84,7 @@ export default function MyWork() {
             {task.isWip ? (
               <WipPill />
             ) : task.estimatedDueDate ? (
-              <span className="mono-meta">due {fmtDate(task.estimatedDueDate)}</span>
+              <span className="mono-meta">due {fmtDay(task.estimatedDueDate)}</span>
             ) : null}
           </div>
           <div className="text-xs text-slate-500 mt-1.5">
@@ -108,6 +108,7 @@ export default function MyWork() {
           >
             <option value="not_started">Not started</option>
             <option value="in_progress">In progress</option>
+            <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
             <option value="complete">Complete</option>
           </select>

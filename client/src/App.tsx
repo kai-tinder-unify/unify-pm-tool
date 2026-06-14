@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Pulse from './pages/Pulse';
 import NewTask from './pages/NewTask';
 import TaskBoard from './pages/TaskBoard';
 import TaskDetail from './pages/TaskDetail';
@@ -39,6 +40,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<Dashboard />} />
+        <Route path="/pulse" element={<Pulse />} />
         <Route path="/intake" element={<NewTask />} />
         <Route path="/tasks" element={<TaskBoard />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />

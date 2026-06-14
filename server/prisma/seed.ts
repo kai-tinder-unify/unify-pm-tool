@@ -16,17 +16,19 @@ const INITIATIVES = [
   'Alliance Investment',
 ];
 
+// Calendar-day fields (submitted / due / start / end) are stored at UTC midnight,
+// matching how the app persists date-picker values, so they display correctly.
 function daysAgo(n: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(9, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - n);
   return d;
 }
 
 function daysFromNow(n: number): Date {
   const d = new Date();
-  d.setDate(d.getDate() + n);
-  d.setHours(17, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + n);
   return d;
 }
 
@@ -188,6 +190,29 @@ async function main() {
       estimatedDueDate: daysAgo(16), estimatedHours: 6,
       bucket: BUCKETS[2], initiative: INITIATIVES[3],
       ownerId: jordan.id, createdById: kai.id,
+    },
+  });
+
+  // Paused: deliberately parked until the next leadership sync
+  await prisma.task.create({
+    data: {
+      title: 'Partner co-marketing deck',
+      description: 'On hold pending alliance direction from the next leadership sync.',
+      requestedBy: 'Tara Nguyen', submittedAt: daysAgo(8),
+      status: 'paused', priority: 'low', isWip: false,
+      bucket: BUCKETS[2], initiative: INITIATIVES[3],
+      ownerId: jordan.id, createdById: derek.id,
+    },
+  });
+  // Unowned: entered into the pipeline before anyone has picked it up
+  await prisma.task.create({
+    data: {
+      title: 'Refresh pricing model',
+      requestedBy: 'Marcus Bell', submittedAt: daysAgo(1),
+      status: 'not_started', priority: 'medium', isWip: false,
+      estimatedDueDate: daysFromNow(4), estimatedHours: 5,
+      bucket: BUCKETS[1], initiative: null,
+      ownerId: null, createdById: kai.id,
     },
   });
 
