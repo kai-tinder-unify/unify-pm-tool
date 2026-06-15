@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'member';
-export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'complete';
+export type TaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'complete' | 'paused';
 export type Priority = 'high' | 'medium' | 'low';
 
 export interface User {

@@ -29,6 +29,7 @@ export function WipPill() {
 const statusLabels: Record<string, string> = {
   not_started: 'Not started',
   in_progress: 'In progress',
+  paused: 'Paused',
   blocked: 'Blocked',
   complete: 'Complete',
 };
@@ -36,6 +37,7 @@ const statusLabels: Record<string, string> = {
 const statusStyles: Record<string, { pill: string; dot: string }> = {
   not_started: { pill: 'bg-white/[0.04] text-slate-400 border-white/[0.08]', dot: 'bg-slate-500' },
   in_progress: { pill: 'bg-accent/10 text-accent-hover border-accent/25', dot: 'bg-accent' },
+  paused: { pill: 'bg-violet-500/10 text-violet-300 border-violet-500/25', dot: 'bg-violet-400' },
   blocked: { pill: 'bg-red-500/10 text-red-300 border-red-500/25', dot: 'bg-red-400' },
   complete: { pill: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', dot: 'bg-emerald-400' },
 };
@@ -139,6 +141,21 @@ export function EmptyState({ children }: { children: ReactNode }) {
 export function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Formats a calendar-day value (due date, requested date, start/end) — stored at
+ * UTC midnight — by its UTC day, so the day shown matches the day picked
+ * regardless of the viewer's timezone. Use fmtDate for true timestamps instead.
+ */
+export function fmtDay(d: string | Date | null | undefined): string {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 /** "YYYY-MM-DD" for date inputs. */

@@ -3,7 +3,7 @@ import { useFetch } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { api } from '../api';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDate } from '../components/ui';
+import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDate, fmtDay } from '../components/ui';
 import type { Task } from '../types';
 import { useState } from 'react';
 
@@ -104,7 +104,7 @@ export default function Dashboard() {
                   </Link>
                   <span className="flex items-center gap-2 shrink-0">
                     <PriorityBadge priority={t.priority} />
-                    <span className="mono-meta">{fmtDate(t.estimatedDueDate)}</span>
+                    <span className="mono-meta">{fmtDay(t.estimatedDueDate)}</span>
                   </span>
                 </li>
               ))}
@@ -142,7 +142,7 @@ export default function Dashboard() {
                   <span className="flex items-center gap-2 shrink-0">
                     <StatusBadge status={t.status} />
                     {t.isWip ? <WipPill /> : t.estimatedDueDate ? (
-                      <span className="mono-meta">{fmtDate(t.estimatedDueDate)}</span>
+                      <span className="mono-meta">{fmtDay(t.estimatedDueDate)}</span>
                     ) : null}
                   </span>
                 </li>

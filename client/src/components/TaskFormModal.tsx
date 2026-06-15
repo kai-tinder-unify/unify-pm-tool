@@ -114,6 +114,7 @@ export default function TaskFormModal({
             <select className="input" value={status} onChange={(e) => setStatus(e.target.value as any)}>
               <option value="not_started">Not started</option>
               <option value="in_progress">In progress</option>
+              <option value="paused">Paused</option>
               <option value="blocked">Blocked</option>
               <option value="complete">Complete</option>
             </select>

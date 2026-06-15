@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useFetch, useLabels, useUsers } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, fmtDate, Modal } from '../components/ui';
+import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, fmtDay, Modal } from '../components/ui';
 import TaskFormModal from '../components/TaskFormModal';
 import LogHoursModal from '../components/LogHoursModal';
 import type { Task, Assignment } from '../types';
@@ -79,7 +79,7 @@ export default function TaskDetail() {
               {task.isWip ? (
                 <WipPill />
               ) : task.estimatedDueDate ? (
-                <span className="mono-meta">due {fmtDate(task.estimatedDueDate)}</span>
+                <span className="mono-meta">due {fmtDay(task.estimatedDueDate)}</span>
               ) : null}
             </div>
           </div>
@@ -103,6 +103,7 @@ export default function TaskDetail() {
           <select className="input" value={task.status} onChange={(e) => updateTask({ status: e.target.value })}>
             <option value="not_started">Not started</option>
             <option value="in_progress">In progress</option>
+            <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
             <option value="complete">Complete</option>
           </select>
@@ -165,7 +166,7 @@ export default function TaskDetail() {
         </div>
         <div>
           <label className="label">Requested</label>
-          <div className="py-2"><span className="mono-meta !text-slate-300">{fmtDate(task.submittedAt)}</span></div>
+          <div className="py-2"><span className="mono-meta !text-slate-300">{fmtDay(task.submittedAt)}</span></div>
         </div>
         <div>
           <label className="label">Logged by</label>
@@ -220,10 +221,10 @@ export default function TaskDetail() {
                 {task.assignments.map((a) => (
                   <tr key={a.id} className="row-hover">
                     <td className="py-2.5 pr-3 font-medium text-ink">{a.user.name}</td>
-                    <td className="py-2.5 pr-3"><span className="mono-meta">{fmtDate(a.startDate)}</span></td>
+                    <td className="py-2.5 pr-3"><span className="mono-meta">{fmtDay(a.startDate)}</span></td>
                     <td className="py-2.5 pr-3">
                       {a.endDate ? (
-                        <span className="mono-meta">{fmtDate(a.endDate)}</span>
+                        <span className="mono-meta">{fmtDay(a.endDate)}</span>
                       ) : (
                         <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
                           <span className="pill-dot bg-emerald-400" />

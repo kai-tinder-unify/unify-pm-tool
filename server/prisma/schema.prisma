@@ -17,6 +17,7 @@ enum TaskStatus {
   in_progress
   blocked
   complete
+  paused // deliberately parked (e.g. awaiting the next meeting); distinct from blocked (stuck on something external)
 }
 
 enum Priority {

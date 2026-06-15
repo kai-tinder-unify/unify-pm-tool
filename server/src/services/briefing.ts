@@ -8,9 +8,14 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/** Calendar-day values (due dates) are stored at UTC midnight — format by UTC day. */
+function fmtDay(d: Date) {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
 function dueLabel(task: { isWip: boolean; estimatedDueDate: Date | null }) {
   if (task.isWip) return 'WIP';
-  if (task.estimatedDueDate) return `due: ${fmtDate(task.estimatedDueDate)}`;
+  if (task.estimatedDueDate) return `due: ${fmtDay(task.estimatedDueDate)}`;
   return 'no date set';
 }
 
@@ -48,7 +53,7 @@ export async function generateBriefing() {
   const topInitiative = [...hoursByInitiative.entries()].sort((a, b) => b[1] - a[1])[0];
 
   const upcoming = await prisma.task.findMany({
-    where: { status: { in: ['not_started', 'in_progress', 'blocked'] } },
+    where: { status: { in: ['not_started', 'in_progress', 'blocked', 'paused'] } },
     include: { owner: true },
     orderBy: [{ priority: 'asc' }, { estimatedDueDate: 'asc' }],
     take: 8,
@@ -82,7 +87,7 @@ export async function generateBriefing() {
   } else {
     for (const t of upcoming) {
       lines.push(
-        `- ${t.title} — owner: ${t.owner?.name ?? 'unassigned'}, ${t.isWip ? 'WIP' : t.estimatedDueDate ? `due: ${fmtDate(t.estimatedDueDate)}` : 'no date'}, priority: ${t.priority}`,
+        `- ${t.title} — owner: ${t.owner?.name ?? 'unassigned'}, ${t.isWip ? 'WIP' : t.estimatedDueDate ? `due: ${fmtDay(t.estimatedDueDate)}` : 'no date'}, priority: ${t.priority}`,
       );
     }
   }
