@@ -83,7 +83,10 @@ export default function Profile() {
               </button>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
+          {/* Helper caption uses the brand's secondary text token (text-muted, #565f67)
+              so it reads as legible AA-compliant meta text on the light paper surface
+              rather than the too-light slate that disappeared on the old dark theme. */}
+          <p className="text-xs text-muted mt-1">
             Overrides the team default for your daily check-in email. Leave empty to use the team default.
           </p>
         </div>

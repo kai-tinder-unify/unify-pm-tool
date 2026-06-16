@@ -72,27 +72,29 @@ export default function Capacity() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="card px-5 py-4">
-          <div className="text-[26px] font-semibold tracking-tight text-white leading-none tabular-nums">
+          {/* KPI figure: Fraunces display-figure (navy) on the light card — replaces the old text-white. */}
+          <div className="display-figure text-[26px] leading-none tabular-nums">
             {active.length}
           </div>
-          <div className="text-xs text-slate-500 mt-2">Active tasks</div>
+          <div className="text-xs text-muted mt-2">Active tasks</div>
         </div>
         <div className="card px-5 py-4">
-          <div className="text-[26px] font-semibold tracking-tight text-white leading-none tabular-nums">
+          <div className="display-figure text-[26px] leading-none tabular-nums">
             {peopleEngaged}
-            <span className="text-base text-slate-500"> / {rows.length}</span>
+            <span className="text-base text-muted"> / {rows.length}</span>
           </div>
-          <div className="text-xs text-slate-500 mt-2">People with active work</div>
+          <div className="text-xs text-muted mt-2">People with active work</div>
         </div>
         <div className="card px-5 py-4">
+          {/* Unowned tasks warrant attention when > 0 -> warn (amber) figure; otherwise neutral navy. */}
           <div
-            className={`text-[26px] font-semibold tracking-tight leading-none tabular-nums ${
-              unowned > 0 ? 'text-amber-300' : 'text-white'
+            className={`display-figure text-[26px] leading-none tabular-nums ${
+              unowned > 0 ? 'text-warn' : 'text-navy'
             }`}
           >
             {unowned}
           </div>
-          <div className="text-xs text-slate-500 mt-2">Unowned tasks</div>
+          <div className="text-xs text-muted mt-2">Unowned tasks</div>
         </div>
       </div>
 
@@ -103,7 +105,8 @@ export default function Capacity() {
         <div className="space-y-2">
           {rows.map((r) => (
             <div key={r.user.id} className="card p-4 flex items-center gap-4">
-              <span className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-navy-700 to-navy-850 border border-black/40 text-[11px] text-ink flex items-center justify-center font-medium">
+              {/* Avatar chip: light aqua tint with navy initials on the light surface (was a dark navy gradient). */}
+              <span className="w-9 h-9 shrink-0 rounded-full bg-aqua-light border border-line text-[11px] text-navy flex items-center justify-center font-medium">
                 {initials(r.user.name)}
               </span>
               <div className="flex-1 min-w-0">
@@ -111,28 +114,33 @@ export default function Capacity() {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-medium text-ink truncate">{r.user.name}</span>
                     {r.user.role === 'admin' && (
-                      <span className="pill bg-gold/10 text-gold border-gold/30">Admin</span>
+                      // Admin pill: aqua tint trio (AA-safe aqua text) replaces the old gold-on-dark idiom.
+                      <span className="pill bg-aqua-light text-aqua-text border-aqua/30">Admin</span>
                     )}
                     {r.total === 0 && (
-                      <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">available</span>
+                      // "available" is a positive/success state -> success tint trio.
+                      <span className="pill bg-success-bg text-success border-success-border">available</span>
                     )}
                   </div>
-                  <span className="text-lg font-semibold tabular-nums text-white shrink-0">
+                  {/* Per-member task count: navy figure on the light card (was text-white). */}
+                  <span className="text-lg font-semibold tabular-nums text-navy shrink-0">
                     {r.total}
-                    <span className="text-xs font-normal text-slate-500"> task{r.total === 1 ? '' : 's'}</span>
+                    <span className="text-xs font-normal text-muted"> task{r.total === 1 ? '' : 's'}</span>
                   </span>
                 </div>
 
-                <div className="mt-2 h-2 rounded-full bg-white/[0.05] overflow-hidden">
+                {/* Progress track: recessed paper-deep well; fill is warn (amber) when overdue, else decorative aqua. */}
+                <div className="mt-2 h-2 rounded-full bg-paper-deep overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${r.overdue > 0 ? 'bg-amber-400' : 'bg-accent'}`}
+                    className={`h-full rounded-full ${r.overdue > 0 ? 'bg-warn' : 'bg-aqua'}`}
                     style={{ width: `${(r.total / maxTotal) * 100}%` }}
                   />
                 </div>
 
                 {r.overdue > 0 && (
                   <div className="mt-2 text-[11px]">
-                    <span className="pill bg-red-500/10 text-red-300 border-red-500/25">
+                    {/* Overdue is a danger state -> danger tint trio. */}
+                    <span className="pill bg-danger-bg text-danger border-danger-border">
                       <span className="font-semibold tabular-nums">{r.overdue}</span>
                       <span>overdue</span>
                     </span>
@@ -146,7 +154,7 @@ export default function Capacity() {
 
       <p className="text-xs text-slate-600">
         Counts active (non-complete) tasks where a person is the owner or an active contributor. Manage assignments from
-        each <Link to="/tasks" className="text-accent hover:text-accent-hover">task</Link>.
+        each <Link to="/tasks" className="text-aqua-text hover:text-navy">task</Link>.
       </p>
     </div>
   );

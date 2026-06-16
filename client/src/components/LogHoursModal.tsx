@@ -62,7 +62,8 @@ export default function LogHoursModal({
           <div>
             <label className="label">End date</label>
             <input type="date" className="input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-            <p className="text-[11px] text-slate-500 mt-1">Leave empty while still active</p>
+            {/* Helper text uses text-muted (the AA-safe secondary ink) — slate-500 read fine on the old navy theme but text-muted is the standard meta color on the new light paper surface */}
+            <p className="text-[11px] text-muted mt-1">Leave empty while still active</p>
           </div>
         </div>
         <div>
