@@ -32,6 +32,8 @@ export default function Settings() {
       smtpUser: data.smtpUser || '',
       smtpFrom: data.smtpFrom || '',
       teamsWebhookUrl: data.teamsWebhookUrl || '',
+      teamsPingEnabled: data.teamsPingEnabled || 'false',
+      teamsTaskAssignedEnabled: data.teamsTaskAssignedEnabled || 'false',
       briefingDistributionList: data.briefingDistributionList || '',
     });
     try {
@@ -214,17 +216,40 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Teams webhook */}
+      {/* Teams notifications */}
       <section className="card p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="section-title">Microsoft Teams webhook</h2>
+          <h2 className="section-title">Microsoft Teams notifications</h2>
           <button className="btn-secondary" onClick={testTeams}>
             Send test message
           </button>
         </div>
         <div>
-          <label className="label">Channel webhook URL (briefing broadcasts)</label>
+          <label className="label">Channel webhook URL (Power Automate Workflows)</label>
           <input className="input" value={form.teamsWebhookUrl || ''} onChange={(e) => set('teamsWebhookUrl', e.target.value)} />
+          <p className="text-xs text-slate-500 mt-1">
+            On the target Teams channel, add a <span className="text-slate-300">Workflows</span> automation from the
+            "Post to a channel when a webhook request is received" template, then paste its URL here. Used for the
+            weekly briefing and the notifications below.
+          </p>
+        </div>
+        <div className="space-y-2 pt-1">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.teamsPingEnabled === 'true'}
+              onChange={(e) => set('teamsPingEnabled', e.target.checked ? 'true' : 'false')}
+            />
+            Post the daily check-in digest to Teams
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.teamsTaskAssignedEnabled === 'true'}
+              onChange={(e) => set('teamsTaskAssignedEnabled', e.target.checked ? 'true' : 'false')}
+            />
+            Post a card when a task is assigned to an owner
+          </label>
         </div>
       </section>
 

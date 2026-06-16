@@ -1,14 +1,39 @@
 import { Router } from 'express';
 import { prisma } from '../prisma';
 import { asyncHandler, requireAdmin, httpError } from '../middleware/auth';
+import { notifyTeams } from '../services/notifications';
 
 const router = Router();
 
 const taskInclude = {
-  owner: { select: { id: true, name: true } },
+  owner: { select: { id: true, name: true, email: true } },
   createdBy: { select: { id: true, name: true } },
   assignments: { include: { user: { select: { id: true, name: true } } } },
 } as const;
+
+/** Fires a Teams "task assigned" notification when the task has an owner. */
+function fireTaskAssigned(task: {
+  id: string;
+  title: string;
+  bucket: string;
+  priority: string;
+  requestedBy: string;
+  owner: { name: string; email: string } | null;
+}) {
+  if (!task.owner) return;
+  void notifyTeams({
+    type: 'task_assigned',
+    task: {
+      id: task.id,
+      title: task.title,
+      bucket: task.bucket,
+      priority: task.priority,
+      requestedBy: task.requestedBy,
+    },
+    assignee: task.owner.name,
+    assigneeEmail: task.owner.email,
+  });
+}
 
 router.get(
   '/',
@@ -59,6 +84,7 @@ router.post(
       },
       include: taskInclude,
     });
+    fireTaskAssigned(task);
     res.status(201).json(task);
   }),
 );
@@ -105,7 +131,19 @@ router.put(
     if (initiative !== undefined) data.initiative = initiative ? String(initiative) : null;
     if (ownerId !== undefined) data.ownerId = ownerId || null;
 
+    // When the owner is being changed, capture the prior owner so we only notify
+    // on a genuine (re)assignment to a non-null owner.
+    let prevOwnerId: string | null = null;
+    if (ownerId !== undefined) {
+      const before = await prisma.task.findUnique({
+        where: { id: req.params.id },
+        select: { ownerId: true },
+      });
+      prevOwnerId = before?.ownerId ?? null;
+    }
+
     const task = await prisma.task.update({ where: { id: req.params.id }, data, include: taskInclude });
+    if (ownerId !== undefined && task.ownerId !== prevOwnerId) fireTaskAssigned(task);
     res.json(task);
   }),
 );

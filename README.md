@@ -61,14 +61,14 @@ All server configuration lives in `server/.env` (see `server/.env.example` for t
 | `SESSION_SECRET` | Session cookie signing secret — change in production | dev placeholder |
 | `APP_URL` | Client origin, used for links in check-in emails | `http://localhost:5173` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email fallbacks (Settings page values take precedence) | empty |
-| `TEAMS_WEBHOOK_URL` | Teams webhook fallback (Settings page takes precedence) | empty |
+| `TEAMS_WEBHOOK_URL` | Power Automate Workflows channel webhook fallback (Settings page takes precedence) | empty |
 | `SCHEDULER_TIMEZONE` | Timezone for ping/briefing schedule evaluation | `America/Los_Angeles` |
 
 ## Configuring email and Teams (from the app)
 
 1. Sign in as an admin and open **Settings**.
 2. **Email (SMTP):** enter host, port, username, password, and from address, then click **Send test email** (it sends to your own address).
-3. **Teams webhook:** create an Incoming Webhook on the target Teams channel, paste the URL, then click **Send test message**.
+3. **Teams webhook:** in the target Teams channel, choose **··· → Workflows** and add the _"Post to a channel when a webhook request is received"_ template (this replaces the retired Office 365 "Incoming Webhook" connector). Copy the generated URL, paste it here, and click **Send test message**. Then tick **Post the daily check-in digest to Teams** and/or **Post a card when a task is assigned** as desired.
 4. **Briefing distribution list:** comma-separated emails that receive the weekly briefing.
 
 Values saved in Settings are stored in the database (`AppSetting`) and take precedence over `.env` fallbacks. No restart is required.
@@ -87,7 +87,8 @@ Values saved in Settings are stored in the database (`AppSetting`) and take prec
 
 ## PM automation
 
-- **Daily check-in pings:** one cron tick every 15 minutes checks which active users have a ping time (personal `pingTime`, else team `defaultPingTime`) in the current window, and emails each a single consolidated list of their active in-progress tasks. A user is never pinged twice within 20 hours. Admins can also click **Send pings now** on the Dashboard.
+- **Daily check-in pings:** one cron tick every 15 minutes checks which active users have a ping time (personal `pingTime`, else team `defaultPingTime`) in the current window, and emails each a single consolidated list of their active in-progress tasks. When **daily check-in digest** is enabled in Settings, the same run also posts one consolidated digest card to the Teams channel. A user is never pinged twice within 20 hours. Admins can also click **Send pings now** on the Dashboard.
+- **Teams notifications:** when enabled in Settings, the app posts Adaptive Cards to a Microsoft Teams channel through a Power Automate Workflows webhook — currently the daily check-in digest and a card when a task is assigned to an owner. Each is independently toggleable, and new event types are added in one place (`server/src/services/notifications.ts`).
 - **Per-user ping times:** each user sets a preferred time on their **Profile** page; admins can set it in **Settings → User management**. Empty = team default.
 - **Weekly briefing:** generated on the configured day/time (or via **Generate now** on the Briefings page) summarizing the last 7 days of logged work, then sent via email and/or Teams — each channel toggleable at send time.
 
