@@ -6,3 +6,9 @@ build/
 .DS_Store
 *.log
 coverage/
+
+# Real seed data — contains live client/leader names and team emails. Never commit
+# (the repo is public). The committed seed-data.example.json is the safe fallback;
+# the real file is distributed out-of-band. See README "Seeding".
+server/prisma/seed-data.json
+server/prisma/build-seed-data.py

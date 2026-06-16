@@ -38,15 +38,29 @@ npm run dev
 - Client: http://localhost:5173 (proxies `/api` to the server)
 - Server: http://localhost:4000
 
-### Seeded logins
+### Seeding
 
-| User | Email | Role | Password |
-|---|---|---|---|
-| Kai Tinder | ktinder@unifyconsulting.com | admin | `ascend123` |
-| Maya Castellanos | mcastellanos@unifyconsulting.com | member | `ascend123` |
-| Derek Whitfield | dwhitfield@unifyconsulting.com | member | `ascend123` |
-| Priya Raghunathan | praghunathan@unifyconsulting.com | member | `ascend123` |
-| Jordan Okafor | jokafor@unifyconsulting.com | member | `ascend123` |
+`npm run db:seed` does a **full reset** (wipes users/tasks/assignments/check-ins, then repopulates) and loads its data from one of two files in `server/prisma/`:
+
+- **`seed-data.json`** — the real roster + pipeline. It contains live client and leader names, so it is **gitignored and never committed** (this repo is public). Used automatically when present.
+- **`seed-data.example.json`** — committed, fully synthetic demo data. Used as a fallback when `seed-data.json` is absent, so a fresh clone and CI boot with safe data.
+
+The seed prints which file it loaded. A synthetic **Dev Admin** test account (`dev@ascendhub.test`) is always added on top so developers can exercise admin features without using a real account.
+
+**Getting the real data (team developers):** the real `seed-data.json` is shared out-of-band over the team channel (Teams/OneDrive) — not through git. Drop it into `server/prisma/` and run `npm run db:seed`; it takes over automatically. It is regenerated from the team's source spreadsheets by `build-seed-data.py` (also gitignored, since it embeds real names); ask the repo owner for it if you need to regenerate from updated sheets.
+
+### Seeded logins (example data)
+
+When seeded from `seed-data.example.json`, all accounts use the password `ascend123`:
+
+| User | Email | Role |
+|---|---|---|
+| Avery Chen | avery.chen@example.com | admin |
+| Maya Castellanos | maya.castellanos@example.com | member |
+| Derek Whitfield | derek.whitfield@example.com | member |
+| Priya Raghunathan | priya.raghunathan@example.com | member |
+| Jordan Okafor | jordan.okafor@example.com | member |
+| Dev Admin | dev@ascendhub.test | admin |
 
 Maya (07:30) and Priya (09:00) have custom ping times; the rest use the team default.
 
