@@ -1,14 +1,25 @@
 import { prisma } from '../prisma';
 import { sendEmail } from './email';
+import { notifyTeams } from './notifications';
 
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 
+function activeAssignmentsFor(userId: string) {
+  return prisma.taskAssignment.findMany({
+    where: { userId, endDate: null, task: { status: 'in_progress' } },
+    include: { task: true },
+  });
+}
+type ActiveAssignment = Awaited<ReturnType<typeof activeAssignmentsFor>>[number];
+
 /**
- * Sends consolidated daily check-in emails.
+ * Sends consolidated daily check-ins over every enabled channel.
  * - `userIds` limits the run (scheduler passes users whose ping time matched);
  *   omit for a manual "send pings now" run covering everyone eligible.
  * - Skips deactivated users, users with no active in-progress assignments,
- *   and users pinged within the past 20 hours (double-fire guard).
+ *   and users pinged within the past 20 hours (double-fire guard, any channel).
+ * - Email is per-user; Teams is a single channel digest of everyone pinged this run.
+ *   The two channels are independent — Teams posts even if SMTP is unconfigured.
  * Returns a summary of what was sent.
  */
 export async function sendCheckIns(userIds?: string[]) {
@@ -22,6 +33,8 @@ export async function sendCheckIns(userIds?: string[]) {
   const cutoff = new Date(Date.now() - 20 * 60 * 60 * 1000);
   const results: { user: string; sent: boolean; reason?: string; taskCount?: number }[] = [];
 
+  // Build the eligible set once — shared by every channel so the guards are applied consistently.
+  const eligible: { user: (typeof users)[number]; assignments: ActiveAssignment[] }[] = [];
   for (const user of users) {
     const recent = await prisma.checkIn.findFirst({
       where: { userId: user.id, sentAt: { gte: cutoff } },
@@ -30,23 +43,24 @@ export async function sendCheckIns(userIds?: string[]) {
       results.push({ user: user.name, sent: false, reason: 'Pinged within the past 20 hours' });
       continue;
     }
-
-    // Active = in-progress task with an open assignment (no endDate) for this user
-    const assignments = await prisma.taskAssignment.findMany({
-      where: { userId: user.id, endDate: null, task: { status: 'in_progress' } },
-      include: { task: true },
-    });
+    const assignments = await activeAssignmentsFor(user.id);
     if (assignments.length === 0) {
       results.push({ user: user.name, sent: false, reason: 'No active task assignments' });
       continue;
     }
+    eligible.push({ user, assignments });
+  }
 
-    const today = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-    });
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
 
+  // --- Channel 1: per-user email ---
+  const emailSent = new Set<string>();
+  const emailError = new Map<string, string>();
+  for (const { user, assignments } of eligible) {
     const rows = assignments
       .map((a) => {
         const days = Math.floor((Date.now() - a.updatedAt.getTime()) / (24 * 60 * 60 * 1000));
@@ -73,9 +87,47 @@ export async function sendCheckIns(userIds?: string[]) {
       await prisma.checkIn.createMany({
         data: assignments.map((a) => ({ taskId: a.taskId, userId: user.id, channel: 'email' })),
       });
-      results.push({ user: user.name, sent: true, taskCount: assignments.length });
+      emailSent.add(user.id);
     } catch (err: any) {
-      results.push({ user: user.name, sent: false, reason: err.message || 'Email send failed' });
+      emailError.set(user.id, err.message || 'Email send failed');
+    }
+  }
+
+  // --- Channel 2: single Teams digest of everyone pinged this run ---
+  let teamsPosted = false;
+  if (eligible.length > 0) {
+    teamsPosted = await notifyTeams({
+      type: 'daily_checkin',
+      date: today,
+      people: eligible.map(({ user, assignments }) => ({
+        name: user.name,
+        email: user.email,
+        tasks: assignments.map((a) => ({
+          title: a.task.title,
+          requestedBy: a.task.requestedBy,
+          priority: a.task.priority,
+        })),
+      })),
+    });
+    if (teamsPosted) {
+      await prisma.checkIn.createMany({
+        data: eligible.flatMap(({ user, assignments }) =>
+          assignments.map((a) => ({ taskId: a.taskId, userId: user.id, channel: 'teams' })),
+        ),
+      });
+    }
+  }
+
+  // Finalize results: a user counts as pinged if any channel delivered.
+  for (const { user, assignments } of eligible) {
+    if (emailSent.has(user.id) || teamsPosted) {
+      results.push({ user: user.name, sent: true, taskCount: assignments.length });
+    } else {
+      results.push({
+        user: user.name,
+        sent: false,
+        reason: emailError.get(user.id) || 'No delivery channel succeeded',
+      });
     }
   }
 

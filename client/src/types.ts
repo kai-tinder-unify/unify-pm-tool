@@ -78,5 +78,7 @@ export interface Settings {
   smtpFrom?: string;
   smtpPassSet?: boolean;
   teamsWebhookUrl?: string;
+  teamsPingEnabled?: string;
+  teamsTaskAssignedEnabled?: string;
   briefingDistributionList?: string;
 }
