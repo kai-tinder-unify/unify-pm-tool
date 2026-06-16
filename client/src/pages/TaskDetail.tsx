@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import { useFetch, useLabels, useUsers } from '../hooks';
@@ -17,10 +17,21 @@ export default function TaskDetail() {
   const { buckets, initiatives } = useLabels();
   const { users } = useUsers();
   const { data: task, loading, error, reload } = useFetch<Task>(`/api/tasks/${id}`);
+  const allTasks = useFetch<Task[]>('/api/tasks');
 
   const [editOpen, setEditOpen] = useState(false);
   const [hoursModal, setHoursModal] = useState<Assignment | null | 'new'>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [addingLeader, setAddingLeader] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+
+  // Distinct leaders from every task (plus this one's current value, so the
+  // dropdown always has a matching option to show).
+  const leaders = useMemo(() => {
+    const set = new Set((allTasks.data || []).map((t) => t.requestedBy).filter(Boolean));
+    if (task?.requestedBy) set.add(task.requestedBy);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [allTasks.data, task?.requestedBy]);
 
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
@@ -48,6 +59,24 @@ export default function TaskDetail() {
       toast.error(e.message);
     } finally {
       setConfirmDelete(false);
+    }
+  };
+
+  // Join the task: upserts the current user's assignment with 0 hours so they
+  // show up as a contributor. Once attached, the button becomes "Log my hours".
+  const attachMyself = async () => {
+    setAttaching(true);
+    try {
+      await api(`/api/tasks/${task.id}/assignments`, {
+        method: 'POST',
+        body: { startDate: new Date().toISOString().slice(0, 10), hoursLogged: 0 },
+      });
+      toast.success("You're now on this task");
+      reload();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAttaching(false);
     }
   };
 
@@ -153,19 +182,46 @@ export default function TaskDetail() {
           </select>
         </div>
         <div>
-          <label className="label">Requested by</label>
-          <input
-            className="input"
-            defaultValue={task.requestedBy}
-            onBlur={(e) => {
-              if (e.target.value.trim() && e.target.value.trim() !== task.requestedBy) {
-                updateTask({ requestedBy: e.target.value.trim() });
-              }
-            }}
-          />
+          <label className="label">Leader Supported</label>
+          {addingLeader ? (
+            <div className="flex gap-2">
+              <input
+                className="input"
+                autoFocus
+                placeholder="e.g. Sandra Liu"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== task.requestedBy) updateTask({ requestedBy: v });
+                  setAddingLeader(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+              />
+              <button type="button" className="btn-secondary shrink-0" onClick={() => setAddingLeader(false)}>
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <select
+              className="input"
+              value={task.requestedBy}
+              onChange={(e) => {
+                if (e.target.value === '__new__') setAddingLeader(true);
+                else if (e.target.value !== task.requestedBy) updateTask({ requestedBy: e.target.value });
+              }}
+            >
+              {leaders.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+              <option value="__new__">+ Add new leader…</option>
+            </select>
+          )}
         </div>
         <div>
-          <label className="label">Requested</label>
+          <label className="label">Entry date</label>
           <div className="py-2"><span className="mono-meta !text-slate-300">{fmtDay(task.submittedAt)}</span></div>
         </div>
         <div>
@@ -177,7 +233,6 @@ export default function TaskDetail() {
           <div className="py-2">
             <span className="font-mono text-xs tabular-nums text-slate-300">
               {Math.round(totalHours * 10) / 10} logged
-              {task.estimatedHours != null && ` of ~${task.estimatedHours} est.`}
             </span>
           </div>
         </div>
@@ -196,9 +251,15 @@ export default function TaskDetail() {
             Contributors{' '}
             <span className="font-mono text-xs tabular-nums text-slate-500 ml-1">({task.assignments.length})</span>
           </h2>
-          <button className="btn-primary" onClick={() => setHoursModal(myAssignment || 'new')}>
-            Log my hours
-          </button>
+          {myAssignment ? (
+            <button className="btn-primary" onClick={() => setHoursModal(myAssignment)}>
+              Log Hours
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={attachMyself} disabled={attaching}>
+              {attaching ? 'Joining…' : 'Join Task'}
+            </button>
+          )}
         </div>
         <div className="px-6 py-4">
           {task.assignments.length === 0 ? (

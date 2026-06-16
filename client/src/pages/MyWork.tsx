@@ -99,7 +99,7 @@ export default function MyWork() {
             className="text-accent text-[13px] font-medium px-2 py-1 rounded-md transition-colors hover:text-accent-hover hover:bg-accent/10"
             onClick={() => setHoursModal({ task, existing: myAssignment })}
           >
-            Log hours
+            Log Hours
           </button>
           <select
             className="input !w-auto !py-1 text-xs"

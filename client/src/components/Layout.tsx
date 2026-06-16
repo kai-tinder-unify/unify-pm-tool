@@ -33,9 +33,24 @@ const icons: Record<string, ReactNode> = {
       <path d="M1.5 8h3l1.5-4 2.5 8 1.5-4h4.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  board: (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="1.5" y="1.5" width="3.6" height="13" rx="1.1" />
+      <rect x="6.2" y="1.5" width="3.6" height="8.5" rx="1.1" />
+      <rect x="10.9" y="1.5" width="3.6" height="11" rx="1.1" />
+    </svg>
+  ),
   analytics: (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
       <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-5M14 13.5V3" strokeLinecap="round" />
+    </svg>
+  ),
+  capacity: (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <circle cx="5.5" cy="5" r="2.5" />
+      <circle cx="11.5" cy="5.5" r="2" />
+      <path d="M1 14c0-2.5 2-4.2 4.5-4.2S10 11.5 10 14" strokeLinecap="round" />
+      <path d="M11 9.9c2 .1 4 1.6 4 4.1" strokeLinecap="round" />
     </svg>
   ),
   briefings: (
@@ -57,20 +72,23 @@ const icons: Record<string, ReactNode> = {
   ),
 };
 
-const sections: { header: string | null; items: { to: string; label: string; icon: string; end?: boolean }[] }[] = [
+const sections: {
+  header: string | null;
+  items: { to: string; label: string; icon: string; end?: boolean; adminOnly?: boolean }[];
+}[] = [
   { header: null, items: [{ to: '/', label: 'Dashboard', icon: 'dashboard', end: true }] },
   {
     header: 'Work',
     items: [
-      { to: '/pulse', label: 'Monday pulse', icon: 'pulse' },
-      { to: '/tasks', label: 'Tasks', icon: 'requests' },
       { to: '/intake', label: 'New task', icon: 'intake' },
+      { to: '/tasks', label: 'Task Board', icon: 'board' },
       { to: '/my-work', label: 'My work', icon: 'mywork' },
     ],
   },
   {
     header: 'Insights',
     items: [
+      { to: '/capacity', label: 'Capacity', icon: 'capacity', adminOnly: true },
       { to: '/analytics', label: 'Analytics', icon: 'analytics' },
       { to: '/briefings', label: 'Briefings', icon: 'briefings' },
     ],
@@ -133,18 +151,22 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-          {sections.map((section, i) => (
-            <div key={i}>
-              {section.header && (
-                <div className="micro-title text-slate-600 px-2.5 mb-1.5">{section.header}</div>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map((item) => (
-                  <NavItem key={item.to} {...item} />
-                ))}
+          {sections.map((section, i) => {
+            const items = section.items.filter((item) => !item.adminOnly || isAdmin);
+            if (items.length === 0) return null;
+            return (
+              <div key={i}>
+                {section.header && (
+                  <div className="micro-title text-slate-600 px-2.5 mb-1.5">{section.header}</div>
+                )}
+                <div className="space-y-0.5">
+                  {items.map((item) => (
+                    <NavItem key={item.to} {...item} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {isAdmin && (
             <div>
               <div className="micro-title text-slate-600 px-2.5 mb-1.5">Admin</div>

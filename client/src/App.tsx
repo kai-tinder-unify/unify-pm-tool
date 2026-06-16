@@ -4,11 +4,11 @@ import Layout from './components/Layout';
 import { Spinner } from './components/ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Pulse from './pages/Pulse';
 import NewTask from './pages/NewTask';
 import TaskBoard from './pages/TaskBoard';
 import TaskDetail from './pages/TaskDetail';
 import MyWork from './pages/MyWork';
+import Capacity from './pages/Capacity';
 import Analytics from './pages/Analytics';
 import Briefings from './pages/Briefings';
 import Settings from './pages/Settings';
@@ -40,7 +40,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<Dashboard />} />
-        <Route path="/pulse" element={<Pulse />} />
+        <Route path="/pulse" element={<Navigate to="/tasks" replace />} />
         <Route path="/intake" element={<NewTask />} />
         <Route path="/tasks" element={<TaskBoard />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />
@@ -48,6 +48,14 @@ export default function App() {
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/briefings" element={<Briefings />} />
+        <Route
+          path="/capacity"
+          element={
+            <RequireAdmin>
+              <Capacity />
+            </RequireAdmin>
+          }
+        />
         <Route
           path="/settings"
           element={

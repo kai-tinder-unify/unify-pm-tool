@@ -28,9 +28,6 @@ export default function TaskFormModal({
   const [priority, setPriority] = useState(existing.priority);
   const [status, setStatus] = useState(existing.status);
   const [ownerId, setOwnerId] = useState(existing.ownerId || '');
-  const [estimatedHours, setEstimatedHours] = useState(
-    existing.estimatedHours != null ? String(existing.estimatedHours) : '',
-  );
   const [targetStartDate, setTargetStartDate] = useState(toInputDate(existing.targetStartDate));
   const [dueMode, setDueMode] = useState<DueMode>(
     existing.isWip ? 'wip' : existing.estimatedDueDate ? 'date' : 'unset',
@@ -46,7 +43,7 @@ export default function TaskFormModal({
       return;
     }
     if (!requestedBy.trim()) {
-      toast.error('Requested by is required');
+      toast.error('Leader Supported is required');
       return;
     }
     setSaving(true);
@@ -61,7 +58,6 @@ export default function TaskFormModal({
           priority,
           status,
           ownerId: ownerId || null,
-          estimatedHours: estimatedHours === '' ? null : Number(estimatedHours),
           targetStartDate: targetStartDate || null,
           isWip: dueMode === 'wip',
           estimatedDueDate: dueMode === 'date' && dueDate ? dueDate : null,
@@ -92,7 +88,7 @@ export default function TaskFormModal({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Requested by (leader) *</label>
+            <label className="label">Leader Supported *</label>
             <input className="input" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} />
           </div>
           <div>
@@ -129,17 +125,6 @@ export default function TaskFormModal({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="label">Estimated hours</label>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              className="input"
-              value={estimatedHours}
-              onChange={(e) => setEstimatedHours(e.target.value)}
-            />
           </div>
           <div>
             <label className="label">Target start date</label>
