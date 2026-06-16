@@ -9,11 +9,12 @@ const APP_URL = process.env.APP_URL || 'http://localhost:5173';
  * To add a new event type:
  *   1. add a variant to this union,
  *   2. add a matching builder to BUILDERS and a toggle key to ENABLED_BY
- *      (TypeScript will flag both until you do),
- *   3. register that toggle key in services/settings.ts (SETTING_KEYS + DEFAULTS),
- *   4. call notifyTeams({ type: 'your_event', ... }) wherever the event happens.
+ *      (null = no toggle, always sent when a webhook is configured),
+ *   3. register any new toggle key in services/settings.ts (SETTING_KEYS + DEFAULTS),
+ *   4. call notifyTeams(...) (auto, fire-and-forget) or sendTeamsEvent(...) (manual,
+ *      throws on failure) wherever the event happens.
  *
- * `email` fields carry the person's UPN so the card can @mention them (a real
+ * `email`/`*Email` fields carry the person's UPN so the card can @mention them (a real
  * activity-feed ping). Pass null to fall back to plain text.
  */
 export type TeamsEvent =
@@ -31,14 +32,22 @@ export type TeamsEvent =
       task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
       assignee: string;
       assigneeEmail: string | null;
+    }
+  | {
+      type: 'task_ping';
+      task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
+      owner: string;
+      ownerEmail: string | null;
+      pingedBy: string;
     };
 
 type EventType = TeamsEvent['type'];
 
-/** The setting that must be 'true' for each event to post. */
-const ENABLED_BY: Record<EventType, SettingKey> = {
+/** Setting that must be 'true' for each event to post; null = always (manual actions). */
+const ENABLED_BY: Record<EventType, SettingKey | null> = {
   daily_checkin: 'teamsPingEnabled',
   task_assigned: 'teamsTaskAssignedEnabled',
+  task_ping: null,
 };
 
 /** The Adaptive Card builder for each event. */
@@ -78,7 +87,30 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
       entities,
     );
   },
+
+  task_ping: (e) => {
+    const entities: Mention[] = [];
+    const who = mentionOrName(e.owner, e.ownerEmail, entities);
+    return card(
+      [
+        heading(`🔔 Ping — ${e.task.title}`),
+        textBlock(`${who}, ${e.pingedBy} is nudging you on this task.`, { wrap: true }),
+        facts([
+          ['Requested by', e.task.requestedBy],
+          ['Bucket', e.task.bucket],
+          ['Priority', e.task.priority],
+        ]),
+      ],
+      [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
+      entities,
+    );
+  },
 };
+
+function buildCard(event: TeamsEvent): AdaptiveCard {
+  const build = BUILDERS[event.type] as unknown as (e: TeamsEvent) => AdaptiveCard;
+  return build(event);
+}
 
 /**
  * Fire-and-forget Teams notification. Returns true if a card was posted.
@@ -89,15 +121,24 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
 export async function notifyTeams(event: TeamsEvent): Promise<boolean> {
   try {
     const settings = await getSettings();
-    if (settings[ENABLED_BY[event.type]] !== 'true') return false;
+    const toggle = ENABLED_BY[event.type];
+    if (toggle && settings[toggle] !== 'true') return false;
     if (!settings.teamsWebhookUrl) return false;
-    const build = BUILDERS[event.type] as unknown as (e: TeamsEvent) => AdaptiveCard;
-    await sendTeamsCard(build(event));
+    await sendTeamsCard(buildCard(event));
     return true;
   } catch (err) {
     console.error(`[teams] Failed to post '${event.type}' notification:`, err);
     return false;
   }
+}
+
+/**
+ * Posts an event's card immediately, bypassing the per-event toggle, and throws on
+ * failure. For manual admin actions (e.g. the per-task "Send ping" button) that need
+ * real success/error feedback rather than fire-and-forget.
+ */
+export async function sendTeamsEvent(event: TeamsEvent): Promise<void> {
+  await sendTeamsCard(buildCard(event));
 }
 
 // --- Adaptive Card building helpers ---

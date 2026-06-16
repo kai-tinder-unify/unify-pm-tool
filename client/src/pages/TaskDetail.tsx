@@ -24,6 +24,7 @@ export default function TaskDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addingLeader, setAddingLeader] = useState(false);
   const [attaching, setAttaching] = useState(false);
+  const [pinging, setPinging] = useState(false);
 
   // Distinct leaders from every task (plus this one's current value, so the
   // dropdown always has a matching option to show).
@@ -47,6 +48,19 @@ export default function TaskDetail() {
       reload();
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  // Admin-only manual nudge to the task owner in Teams — no cooldown.
+  const sendPing = async () => {
+    setPinging(true);
+    try {
+      const res = await api<{ message: string }>(`/api/tasks/${task.id}/ping`, { method: 'POST' });
+      toast.success(res.message);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setPinging(false);
     }
   };
 
@@ -113,6 +127,16 @@ export default function TaskDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {isAdmin && (
+              <button
+                className="btn-secondary"
+                onClick={sendPing}
+                disabled={pinging || !task.owner}
+                title={task.owner ? `Ping ${task.owner.name} in Teams` : 'Assign an owner to enable pinging'}
+              >
+                {pinging ? 'Pinging…' : 'Send ping'}
+              </button>
+            )}
             <button className="btn-secondary" onClick={() => setEditOpen(true)}>
               Edit task
             </button>

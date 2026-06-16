@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../prisma';
 import { asyncHandler, requireAdmin, httpError } from '../middleware/auth';
-import { notifyTeams } from '../services/notifications';
+import { notifyTeams, sendTeamsEvent } from '../services/notifications';
 
 const router = Router();
 
@@ -201,6 +201,41 @@ router.post(
       include: { user: { select: { id: true, name: true } } },
     });
     res.status(201).json(assignment);
+  }),
+);
+
+/** Manual admin ping — notifies the task owner in Teams immediately, no cooldown. */
+router.post(
+  '/:id/ping',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const task = await prisma.task.findUnique({
+      where: { id: req.params.id },
+      include: { owner: { select: { name: true, email: true } } },
+    });
+    if (!task) throw httpError(404, 'Task not found');
+    if (!task.owner) {
+      throw httpError(400, 'This task has no owner to ping. Assign an owner first.');
+    }
+
+    // Bypasses the daily-ping toggle and the 20h check-in guard by design — this is
+    // a deliberate admin action. sendTeamsEvent throws on failure so the admin gets
+    // a real error (e.g. webhook not configured) rather than a silent no-op.
+    await sendTeamsEvent({
+      type: 'task_ping',
+      task: {
+        id: task.id,
+        title: task.title,
+        bucket: task.bucket,
+        priority: task.priority,
+        requestedBy: task.requestedBy,
+      },
+      owner: task.owner.name,
+      ownerEmail: task.owner.email,
+      pingedBy: req.user!.name,
+    });
+
+    res.json({ ok: true, message: `Ping sent to ${task.owner.name}` });
   }),
 );
 
