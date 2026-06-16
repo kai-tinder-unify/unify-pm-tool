@@ -101,17 +101,24 @@ function NavItem({ to, label, icon, end }: { to: string; label: string; icon: st
       to={to}
       end={end}
       className={({ isActive }) =>
+        // Sidebar stays dark navy, so nav items keep white-alpha text.
+        // Active item: white text on a faint aqua tint with an aqua left border accent.
+        // Inactive: dim white that brightens on hover, with a subtle white-alpha hover fill.
         `group relative flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] font-medium transition-colors duration-100 ${
-          isActive ? 'bg-white/[0.06] text-white' : 'text-slate-400 hover:text-ink hover:bg-white/[0.04]'
+          isActive
+            ? 'bg-aqua/10 text-white border-l-2 border-aqua'
+            : 'text-white/55 hover:text-white/90 hover:bg-white/5'
         }`
       }
     >
       {({ isActive }) => (
         <>
           {isActive && (
-            <span className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-full bg-accent" />
+            // Aqua rail marker for the active item (decorative accent on the dark sidebar).
+            <span className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-full bg-aqua" />
           )}
-          <span className={isActive ? 'text-accent' : 'text-slate-500 group-hover:text-slate-300 transition-colors'}>
+          {/* Active icon glows aqua; inactive icons sit in dim white and brighten on hover. */}
+          <span className={isActive ? 'text-aqua' : 'text-white/40 group-hover:text-white/70 transition-colors'}>
             {icons[icon]}
           </span>
           {label}
@@ -132,21 +139,25 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 bg-navy-925 border-r border-subtle flex flex-col">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-subtle">
+      {/* Sidebar — intentionally stays dark navy in the new light "Command Center" brand. */}
+      <aside className="w-60 shrink-0 bg-navy border-r border-line flex flex-col">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
             style={{
-              backgroundImage: 'linear-gradient(135deg, #2F9BEF, #0E6CC2)',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 6px rgba(14,108,194,0.4)',
+              // Brand logo tile: aqua-to-deep-aqua gradient (replaces the old blue gradient).
+              backgroundImage: 'linear-gradient(135deg, #1cc4bc, #0a6e6a)',
+              // Soft neutral shadow instead of the old blue glow, so it reads on the dark navy sidebar.
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 6px rgba(13,34,56,0.35)',
             }}
           >
             A
           </div>
           <div className="min-w-0">
+            {/* Wordmark stays white on the dark navy sidebar. */}
             <div className="text-white font-semibold text-[14px] tracking-[-0.01em] leading-tight">Ascend Hub</div>
-            <div className="text-gold/80 text-[10px] font-semibold tracking-[0.16em] uppercase">Unify</div>
+            {/* "Unify" eyebrow: aqua-mid tints the brand line without bright small text. */}
+            <div className="text-aqua-mid text-[10px] font-semibold tracking-[0.16em] uppercase">Unify</div>
           </div>
         </div>
 
@@ -157,7 +168,8 @@ export default function Layout() {
             return (
               <div key={i}>
                 {section.header && (
-                  <div className="micro-title text-slate-600 px-2.5 mb-1.5">{section.header}</div>
+                  // Sidebar group label: very dim white so it sits quietly under the bright nav items.
+                  <div className="micro-title text-white/30 px-2.5 mb-1.5">{section.header}</div>
                 )}
                 <div className="space-y-0.5">
                   {items.map((item) => (
@@ -169,7 +181,8 @@ export default function Layout() {
           })}
           {isAdmin && (
             <div>
-              <div className="micro-title text-slate-600 px-2.5 mb-1.5">Admin</div>
+              {/* Sidebar group label (dim white) — matches the other section headers. */}
+              <div className="micro-title text-white/30 px-2.5 mb-1.5">Admin</div>
               <div className="space-y-0.5">
                 <NavItem to="/settings" label="Settings" icon="settings" />
               </div>
@@ -177,16 +190,18 @@ export default function Layout() {
           )}
         </nav>
 
-        <div className="px-3 py-3 border-t border-subtle space-y-0.5">
+        <div className="px-3 py-3 border-t border-white/10 space-y-0.5">
           <NavLink
             to="/profile"
             className={({ isActive }) =>
+              // Same dark-sidebar treatment as the nav items: white-alpha text, aqua-tint active state.
               `flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors duration-100 ${
-                isActive ? 'bg-white/[0.06] text-white' : 'text-slate-400 hover:text-ink hover:bg-white/[0.04]'
+                isActive ? 'bg-aqua/10 text-white' : 'text-white/55 hover:text-white/90 hover:bg-white/5'
               }`
             }
           >
-            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-accent/40 to-accent/15 border border-accent/30 text-accent flex items-center justify-center text-[10px] font-semibold shrink-0">
+            {/* Avatar chip: aqua gradient/border/text to match the brand accent on the dark sidebar. */}
+            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-aqua/40 to-aqua/15 border border-aqua/30 text-aqua flex items-center justify-center text-[10px] font-semibold shrink-0">
               {user?.name
                 .split(' ')
                 .map((p) => p[0])
@@ -197,9 +212,10 @@ export default function Layout() {
           </NavLink>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium text-slate-500 transition-colors duration-100 hover:text-ink hover:bg-white/[0.04]"
+            // Sign-out sits quietly in dim white and brightens on hover, matching the dark sidebar idiom.
+            className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium text-white/50 transition-colors duration-100 hover:text-white hover:bg-white/5"
           >
-            <span className="text-slate-600">{icons.signout}</span>
+            <span className="text-white/40">{icons.signout}</span>
             Sign out
           </button>
         </div>
@@ -207,11 +223,13 @@ export default function Layout() {
 
       {/* Main */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-12 shrink-0 sticky top-0 z-30 bg-navy-950/80 backdrop-blur border-b border-subtle flex items-center gap-2 px-8">
-          <span className="text-[13px] text-slate-500">Unify Ascend Task Hub</span>
+        {/* Top header is LIGHT: translucent white over the paper background, with a hairline divider. */}
+        <header className="h-12 shrink-0 sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-line flex items-center gap-2 px-8">
+          <span className="text-[13px] text-muted">Unify Ascend Task Hub</span>
           {isAdmin && (
-            <span className="pill bg-gold/10 text-gold border-gold/30">
-              <span className="pill-dot bg-gold" />
+            // Admin pill on the light header: on-brand aqua tint with AA-safe aqua text and an aqua dot.
+            <span className="pill bg-aqua-light text-aqua-text border-aqua/30">
+              <span className="pill-dot bg-aqua" />
               Admin
             </span>
           )}

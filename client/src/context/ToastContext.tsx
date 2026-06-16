@@ -37,13 +37,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`animate-toast-in flex items-start gap-2.5 rounded-lg px-4 py-3 text-[13px] text-ink bg-navy-800 border shadow-modal ${
-              t.kind === 'success' ? 'border-emerald-500/30' : 'border-red-500/30'
+            // Light-theme toast: white card + navy ink, with a semantic border + leading
+            // dot per kind (was bg-navy-800 + text-ink, which is now navy-on-navy / invisible).
+            className={`animate-toast-in flex items-start gap-2.5 rounded-lg px-4 py-3 text-[13px] text-ink bg-white border shadow-modal ${
+              t.kind === 'success' ? 'border-success-border' : 'border-danger-border'
             }`}
           >
             <span
               className={`mt-[5px] w-1.5 h-1.5 rounded-full shrink-0 ${
-                t.kind === 'success' ? 'bg-emerald-400' : 'bg-red-400'
+                t.kind === 'success' ? 'bg-success' : 'bg-danger'
               }`}
             />
             {t.message}

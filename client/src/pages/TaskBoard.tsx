@@ -27,7 +27,8 @@ type ViewMode = 'board' | 'list';
 // its own collapsible section at the bottom.
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'not_started', label: 'Not started', dot: 'bg-slate-500' },
-  { status: 'in_progress', label: 'In progress', dot: 'bg-accent' },
+  // In-progress uses the decorative aqua accent dot (the brand's "in progress" cue).
+  { status: 'in_progress', label: 'In progress', dot: 'bg-aqua' },
   { status: 'paused', label: 'Paused', dot: 'bg-violet-400' },
   { status: 'blocked', label: 'Blocked', dot: 'bg-red-400' },
 ];
@@ -35,7 +36,8 @@ const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
 const priorityBorder: Record<string, string> = {
   high: 'border-l-red-500/70',
   medium: 'border-l-amber-500/70',
-  low: 'border-l-slate-600',
+  // Low priority gets a neutral hairline left-border on light surfaces.
+  low: 'border-l-line',
 };
 
 /** Whole calendar days from today until `date` (negative = past). */
@@ -75,10 +77,11 @@ function initials(name: string): string {
 function OwnerTag({ name }: { name: string }) {
   return (
     <span className="flex items-center gap-1.5 min-w-0">
-      <span className="w-5 h-5 shrink-0 rounded-full bg-gradient-to-br from-navy-700 to-navy-850 border border-black/40 text-[9px] text-ink flex items-center justify-center font-medium">
+      {/* Avatar chip: aqua tint fill with navy initials reads well on a white card. */}
+      <span className="w-5 h-5 shrink-0 rounded-full bg-aqua-light border border-line text-[9px] text-navy flex items-center justify-center font-medium">
         {initials(name)}
       </span>
-      <span className="text-xs text-slate-400 truncate">{name}</span>
+      <span className="text-xs text-muted truncate">{name}</span>
     </span>
   );
 }
@@ -86,16 +89,20 @@ function OwnerTag({ name }: { name: string }) {
 function DueChip({ task }: { task: Task }) {
   if (task.isWip || !task.estimatedDueDate) return null;
   const days = dayDiff(task.estimatedDueDate);
-  let cls = 'text-slate-500 bg-white/[0.04] border-white/[0.08]';
+  // Default (comfortably-future) due date: neutral well + muted text on light.
+  let cls = 'text-muted bg-paper-deep border-line';
   let text = `due ${fmtDay(task.estimatedDueDate)}`;
   if (days < 0) {
-    cls = 'text-red-300 bg-red-500/10 border-red-500/25';
+    // Overdue → danger trio (tint fill + AA-safe danger text + danger border).
+    cls = 'text-danger bg-danger-bg border-danger-border';
     text = `${-days}d overdue`;
   } else if (days === 0) {
-    cls = 'text-red-300 bg-red-500/10 border-red-500/25';
+    // Due today is also treated as urgent → danger trio.
+    cls = 'text-danger bg-danger-bg border-danger-border';
     text = 'due today';
   } else if (days <= 3) {
-    cls = 'text-amber-300 bg-amber-500/10 border-amber-500/25';
+    // Due soon (within 3 days) → warn/amber trio.
+    cls = 'text-warn bg-warn-bg border-warn-border';
     text = `due in ${days}d`;
   }
   return <span className={`pill ${cls}`}>{text}</span>;
@@ -242,14 +249,16 @@ export default function TaskBoard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-lg border border-subtle bg-navy-925 p-0.5 text-[13px] font-medium">
+          {/* Recessed segmented control on a light surface: paper-deep well + hairline border. */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-line bg-paper-deep p-0.5 text-[13px] font-medium">
             {(['board', 'list'] as const).map((v) => (
               <button
                 key={v}
                 className={`rounded-md px-3 py-1 capitalize transition-colors duration-100 ${
                   view === v
-                    ? 'bg-white/[0.08] text-white shadow-card'
-                    : 'text-slate-400 hover:text-ink hover:bg-white/[0.04]'
+                    ? // Active tab lifts to a white pill with navy text + card shadow.
+                      'bg-white text-navy shadow-card'
+                    : 'text-muted hover:text-navy hover:bg-white'
                 }`}
                 onClick={() => setViewPersist(v)}
               >
@@ -258,7 +267,8 @@ export default function TaskBoard() {
             ))}
           </div>
           <button
-            className={`btn-secondary relative ${showFilters ? '!bg-white/[0.08] !text-white' : ''}`}
+            // When the filter panel is open, the toggle takes the navy primary fill.
+            className={`btn-secondary relative ${showFilters ? '!bg-navy !text-white' : ''}`}
             onClick={() => setShowFilters((s) => !s)}
             title="Filters"
           >
@@ -267,7 +277,7 @@ export default function TaskBoard() {
             </svg>
             Filters
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px] font-semibold tabular-nums flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-aqua text-white text-[10px] font-semibold tabular-nums flex items-center justify-center">
                 {activeFilterCount}
               </span>
             )}
@@ -289,7 +299,8 @@ export default function TaskBoard() {
           <CountPill label="unowned" value={counts.unowned} tone="amber" />
         </div>
         <div className="flex items-center gap-2">
-          <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
+          {/* Live indicator → success trio; the pulsing dot keeps its bright green for the "live" cue. */}
+          <span className="pill bg-success-bg text-success border-success-border">
             <span className="pill-dot bg-emerald-400 animate-pulse" />
             Live
           </span>
@@ -376,7 +387,7 @@ export default function TaskBoard() {
         <div>
           <h2 className="micro-title mb-2 flex items-center gap-2">
             Up for grabs
-            <span className="font-normal normal-case tracking-normal text-slate-600 text-[11px]">
+            <span className="font-normal normal-case tracking-normal text-muted text-[11px]">
               entered without an owner — anyone can claim
             </span>
           </h2>
@@ -384,16 +395,17 @@ export default function TaskBoard() {
             {upForGrabs.map((t) => (
               <div
                 key={t.id}
-                className="card-elevated border-dashed border-amber-500/40 px-3.5 py-2.5 flex items-center gap-3"
+                // Unowned card: dashed warn (amber) border signals "needs a claimer".
+                className="card-elevated border-dashed border-warn-border px-3.5 py-2.5 flex items-center gap-3"
               >
                 <div className="min-w-0">
                   <Link
                     to={`/tasks/${t.id}`}
-                    className="font-medium text-[13px] text-ink transition-colors hover:text-accent-hover"
+                    className="font-medium text-[13px] text-ink transition-colors hover:text-aqua-text"
                   >
                     {t.title}
                   </Link>
-                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                  <div className="text-xs text-muted mt-0.5 flex items-center gap-1.5">
                     <PriorityBadge priority={t.priority} />
                     <span>for {t.requestedBy}</span>
                   </div>
@@ -434,21 +446,23 @@ export default function TaskBoard() {
                   if (id) moveTask(id, col.status);
                 }}
                 className={`rounded-xl p-3 border transition-colors ${
-                  isDropTarget ? 'bg-accent/[0.06] border-accent/50' : 'bg-navy-900/40 border-faint'
+                  // Active drop target highlights with an aqua wash + aqua border; resting
+                  // columns are a recessed paper well with a hairline border on light.
+                  isDropTarget ? 'bg-aqua/10 border-aqua/50' : 'bg-paper-deep border-line'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <span className="flex items-center gap-2 text-[13px] font-semibold tracking-[-0.01em] text-slate-300">
+                  <span className="flex items-center gap-2 text-[13px] font-semibold tracking-[-0.01em] text-navy">
                     <span className={`w-2 h-2 rounded-full ${col.dot}`} />
                     {col.label}
                   </span>
-                  <span className="font-mono text-[11px] tabular-nums text-slate-500 bg-white/[0.05] border border-faint rounded-full px-2 py-0.5">
+                  <span className="font-mono text-[11px] tabular-nums text-muted bg-white border border-line rounded-full px-2 py-0.5">
                     {items.length}
                   </span>
                 </div>
                 <div className="space-y-2 min-h-[40px]">
                   {items.length === 0 ? (
-                    <p className="text-[12px] text-slate-600 text-center py-6">
+                    <p className="text-[12px] text-muted text-center py-6">
                       {isDropTarget ? 'Drop to move here' : 'Nothing here'}
                     </p>
                   ) : (
@@ -480,7 +494,7 @@ export default function TaskBoard() {
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-subtle">
+              <tr className="border-b border-line">
                 <th className="th pl-5">Task</th>
                 <th className="th">Leader</th>
                 <th className="th">Bucket</th>
@@ -490,7 +504,7 @@ export default function TaskBoard() {
                 <th className="th pr-5">Requested</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.04]">
+            <tbody className="divide-y divide-line">
               {active.map((t) => {
                 const hours = t.assignments.reduce((s, a) => s + a.hoursLogged, 0);
                 return (
@@ -498,16 +512,17 @@ export default function TaskBoard() {
                     <td className="px-4 py-3 pl-5">
                       <Link
                         to={`/tasks/${t.id}`}
-                        className="font-medium text-ink transition-colors group-hover:text-white hover:!text-accent-hover"
+                        // Stays ink by default; hover shifts to AA-safe aqua link color on light.
+                        className="font-medium text-ink transition-colors hover:!text-aqua-text"
                       >
                         {t.title}
                       </Link>
                       {t.initiative && (
-                        <div className="text-xs text-slate-500 truncate max-w-md mt-0.5">{t.initiative}</div>
+                        <div className="text-xs text-muted truncate max-w-md mt-0.5">{t.initiative}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{t.requestedBy}</td>
-                    <td className="px-4 py-3 text-slate-400 text-xs">{t.bucket}</td>
+                    <td className="px-4 py-3 text-muted">{t.requestedBy}</td>
+                    <td className="px-4 py-3 text-muted text-xs">{t.bucket}</td>
                     <td className="px-4 py-3">
                       <PriorityBadge priority={t.priority} />
                     </td>
@@ -518,7 +533,7 @@ export default function TaskBoard() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-mono text-xs tabular-nums text-slate-400">
+                      <span className="font-mono text-xs tabular-nums text-muted">
                         {Math.round(hours * 10) / 10}
                       </span>
                     </td>
@@ -542,7 +557,7 @@ export default function TaskBoard() {
         >
           <span className="flex items-center gap-2">
             <span className="section-title">Completed since last meeting</span>
-            <span className="font-mono text-[11px] tabular-nums text-slate-500 bg-white/[0.05] border border-faint rounded-full px-2 py-0.5">
+            <span className="font-mono text-[11px] tabular-nums text-muted bg-paper-deep border border-line rounded-full px-2 py-0.5">
               {completed.length}
             </span>
           </span>
@@ -564,7 +579,7 @@ export default function TaskBoard() {
             {completed.length === 0 ? (
               <EmptyState>Nothing wrapped up since the last meeting yet</EmptyState>
             ) : (
-              <ul className="divide-y divide-white/[0.04]">
+              <ul className="divide-y divide-line">
                 {completed.map((t) => {
                   const contributors = [...new Set(t.assignments.map((a) => a.user.name))];
                   const who = contributors.length > 0 ? contributors.join(', ') : t.owner?.name ?? '—';
@@ -573,11 +588,11 @@ export default function TaskBoard() {
                       <span className="min-w-0">
                         <Link
                           to={`/tasks/${t.id}`}
-                          className="font-medium text-ink transition-colors hover:text-accent-hover"
+                          className="font-medium text-ink transition-colors hover:text-aqua-text"
                         >
                           {t.title}
                         </Link>
-                        <span className="text-slate-500"> — {who}</span>
+                        <span className="text-muted"> — {who}</span>
                       </span>
                       <span className="mono-meta shrink-0">{fmtDate(t.updatedAt)}</span>
                     </li>
@@ -592,18 +607,22 @@ export default function TaskBoard() {
   );
 }
 
+// Count-strip pill tints, mapped to the light-brand semantic trios. The `default`
+// tone is the neutral recessed well; non-zero counts pick up their status color.
 const tonePill: Record<string, string> = {
-  default: 'bg-white/[0.05] text-slate-300 border-white/[0.08]',
-  red: 'bg-red-500/10 text-red-300 border-red-500/25',
-  amber: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
-  violet: 'bg-violet-500/10 text-violet-300 border-violet-500/25',
+  default: 'bg-paper-deep text-muted border-line',
+  red: 'bg-danger-bg text-danger border-danger-border',
+  amber: 'bg-warn-bg text-warn border-warn-border',
+  // Violet has no brand token; keep the hue but use a tint+dark-text+border idiom
+  // (600 text reads AA-safe on the light violet wash, unlike the old 300).
+  violet: 'bg-violet-500/10 text-violet-600 border-violet-500/30',
 };
 
 function CountPill({ label, value, tone = 'default' }: { label: string; value: number; tone?: string }) {
   return (
     <span className={`pill ${value > 0 ? tonePill[tone] : tonePill.default}`}>
       <span className="font-semibold tabular-nums">{value}</span>
-      <span className="text-slate-400">{label}</span>
+      <span className="text-muted">{label}</span>
     </span>
   );
 }
@@ -635,7 +654,7 @@ function BoardCard({
       <Link
         to={`/tasks/${task.id}`}
         draggable={false}
-        className="block font-medium text-[13px] leading-snug text-ink transition-colors hover:text-accent-hover"
+        className="block font-medium text-[13px] leading-snug text-ink transition-colors hover:text-aqua-text"
       >
         {task.title}
       </Link>
@@ -644,7 +663,9 @@ function BoardCard({
           <OwnerTag name={task.owner.name} />
         ) : (
           <button
-            className="text-[12px] font-medium text-amber-300/90 px-2 py-0.5 rounded-md border border-dashed border-amber-500/40 transition-colors hover:bg-amber-500/10 disabled:opacity-50"
+            // Inline "Claim" affordance: warn (amber) dashed outline that fills with the
+            // warn tint on hover — the light-brand equivalent of the old amber-300 chip.
+            className="text-[12px] font-medium text-warn px-2 py-0.5 rounded-md border border-dashed border-warn-border transition-colors hover:bg-warn-bg disabled:opacity-50"
             onClick={() => onClaim(task)}
             disabled={claiming}
           >

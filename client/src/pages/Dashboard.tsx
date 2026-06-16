@@ -82,8 +82,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => (
           <div key={c.label} className="card card-hover px-5 py-4">
-            <div className="text-[26px] font-semibold tracking-tight text-white leading-none tabular-nums">{c.value}</div>
-            <div className="text-xs text-slate-500 mt-2">{c.label}</div>
+            {/* KPI figure: Fraunces 300 navy via .display-figure (was text-white, invisible on light paper). tabular-nums keeps digits aligned. */}
+            <div className="display-figure text-[26px] leading-none tabular-nums">{c.value}</div>
+            {/* Stat label: muted grey for secondary/meta text (was text-slate-500, slightly too faint on paper). */}
+            <div className="text-xs text-muted mt-2">{c.label}</div>
           </div>
         ))}
       </div>
@@ -99,7 +101,8 @@ export default function Dashboard() {
             <ul className="mb-4">
               {dueSoon.slice(0, 5).map((t) => (
                 <li key={t.id} className="list-row py-2 flex items-center justify-between gap-2 text-sm">
-                  <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-accent-hover">
+                  {/* Title link hovers to navy (was accent-hover, which was a dark-theme bright-aqua hover). */}
+                  <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-navy">
                     {t.title}
                   </Link>
                   <span className="flex items-center gap-2 shrink-0">
@@ -116,7 +119,8 @@ export default function Dashboard() {
               <ul>
                 {wipTasks.slice(0, 4).map((t) => (
                   <li key={t.id} className="list-row py-2 flex items-center justify-between gap-2 text-sm">
-                    <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-accent-hover">
+                    {/* Title link hovers to navy (was accent-hover bright-aqua dark-theme hover). */}
+                    <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-navy">
                       {t.title}
                     </Link>
                     <WipPill />
@@ -136,7 +140,8 @@ export default function Dashboard() {
             <ul>
               {myTasks.slice(0, 6).map((t) => (
                 <li key={t.id} className="list-row py-2 flex items-center justify-between gap-2 text-sm">
-                  <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-accent-hover">
+                  {/* Title link hovers to navy (was accent-hover bright-aqua dark-theme hover). */}
+                  <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-navy">
                     {t.title}
                   </Link>
                   <span className="flex items-center gap-2 shrink-0">
@@ -149,9 +154,10 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
+          {/* Call-to-action link: AA-safe aqua text, hovers to navy (was bright text-accent/accent-hover from dark theme). */}
           <Link
             to="/my-work"
-            className="text-accent text-[13px] font-medium mt-4 inline-block transition-colors hover:text-accent-hover"
+            className="text-aqua-text text-[13px] font-medium mt-4 inline-block transition-colors hover:text-navy"
           >
             Go to My work →
           </Link>
@@ -164,14 +170,17 @@ export default function Dashboard() {
         {recentActivity.length === 0 ? (
           <EmptyState>No activity yet</EmptyState>
         ) : (
-          <ul className="divide-y divide-white/[0.04]">
+          // Row dividers: hairline grey (was divide-white/[0.04], a white-alpha idiom that was invisible on light paper).
+          <ul className="divide-y divide-line">
             {recentActivity.map((t) => (
               <li key={t.id} className="list-row py-2.5 flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">
-                  <Link to={`/tasks/${t.id}`} className="transition-colors hover:text-accent-hover">
+                  {/* Title link hovers to navy (was accent-hover bright-aqua dark-theme hover). */}
+                  <Link to={`/tasks/${t.id}`} className="transition-colors hover:text-navy">
                     {t.title}
                   </Link>
-                  <span className="text-slate-500"> — for {t.requestedBy}</span>
+                  {/* Requester meta: muted grey to match other secondary text (was text-slate-500). */}
+                  <span className="text-muted"> — for {t.requestedBy}</span>
                 </span>
                 <span className="flex items-center gap-2 shrink-0">
                   <StatusBadge status={t.status} />
@@ -181,9 +190,10 @@ export default function Dashboard() {
             ))}
           </ul>
         )}
+        {/* Call-to-action link: AA-safe aqua text, hovers to navy (was bright text-accent/accent-hover from dark theme). */}
         <Link
           to="/analytics"
-          className="text-accent text-[13px] font-medium mt-4 inline-block transition-colors hover:text-accent-hover"
+          className="text-aqua-text text-[13px] font-medium mt-4 inline-block transition-colors hover:text-navy"
         >
           Full analytics →
         </Link>

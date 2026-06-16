@@ -6,14 +6,18 @@ import {
 import { useFetch, useLabels } from '../hooks';
 import { Spinner, ErrorNote, EmptyState } from '../components/ui';
 
-const CHART_COLORS = ['#2F9BEF', '#D2B468', '#34d399', '#f87171', '#a78bfa', '#fb923c'];
+// Command Center light palette: aqua, navy, green, amber, red, violet.
+// All hues chosen to read clearly on a white card and meet AA contrast for chart fills/legends.
+const CHART_COLORS = ['#1cc4bc', '#14314f', '#1a7a4a', '#a06010', '#b91c1c', '#7c5cd6'];
+// Recharts tooltip restyled for the light theme: white card, hairline border,
+// navy ink text, and a soft navy-tinted drop shadow to lift it off the page.
 const TOOLTIP_STYLE = {
-  backgroundColor: '#192339',
-  border: '1px solid rgba(255,255,255,0.13)',
+  backgroundColor: '#FFFFFF',
+  border: '1px solid #E6E6E6',
   borderRadius: 8,
-  color: '#E2E9F4',
+  color: '#14314f',
   fontSize: 12,
-  boxShadow: '0 4px 12px rgba(3,7,16,0.45)',
+  boxShadow: '0 4px 16px rgba(13,34,56,0.12)',
 };
 
 interface CapacityData {
@@ -66,7 +70,8 @@ export default function Analytics() {
       {/* Filters — persisted in URL params */}
       <div className="card px-4 py-3 flex flex-wrap gap-2 items-center text-sm">
         <input type="date" className="input !w-auto" value={params.get('from') || ''} onChange={(e) => setFilter('from', e.target.value)} />
-        <span className="text-slate-500">to</span>
+        {/* Secondary meta text on the light filter card — use the muted ink token. */}
+        <span className="text-muted">to</span>
         <input type="date" className="input !w-auto" value={params.get('to') || ''} onChange={(e) => setFilter('to', e.target.value)} />
         <select className="input !w-auto" value={params.get('bucket') || ''} onChange={(e) => setFilter('bucket', e.target.value)}>
           <option value="">All buckets</option>
@@ -90,11 +95,14 @@ export default function Analytics() {
           {cap.weeklyTrend.length === 0 ? <EmptyState>No data</EmptyState> : (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={cap.weeklyTrend}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="week" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={12} />
+                {/* Grid lines as a faint navy tint so they're visible on white (was white-alpha, invisible on light). */}
+                <CartesianGrid stroke="rgba(20,49,79,0.08)" />
+                {/* Axis strokes use the muted-ink hex so ticks/labels read on paper. */}
+                <XAxis dataKey="week" stroke="#565f67" fontSize={11} />
+                <YAxis stroke="#565f67" fontSize={12} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Line type="monotone" dataKey="hours" stroke="#C9A84C" strokeWidth={2} dot={{ fill: '#C9A84C' }} />
+                {/* Trend line + dots in decorative aqua (was old gold accent). */}
+                <Line type="monotone" dataKey="hours" stroke="#1cc4bc" strokeWidth={2} dot={{ fill: '#1cc4bc' }} />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -109,12 +117,14 @@ export default function Analytics() {
           {cap.estVsActual.length === 0 ? <EmptyState>No tasks with estimates</EmptyState> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={cap.estVsActual}>
-                <XAxis dataKey="task" stroke="#64748b" fontSize={11} interval={0} angle={-12} textAnchor="end" height={60} />
-                <YAxis stroke="#64748b" fontSize={12} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                <XAxis dataKey="task" stroke="#565f67" fontSize={11} interval={0} angle={-12} textAnchor="end" height={60} />
+                <YAxis stroke="#565f67" fontSize={12} />
+                {/* Hover cursor as a faint navy wash (was white-alpha, invisible on light). */}
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(20,49,79,0.05)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="estimated" fill="#475569" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="actual" fill="#2F9BEF" radius={[4, 4, 0, 0]} />
+                {/* Estimated = neutral slate bar; actual = brand aqua so the comparison pops. */}
+                <Bar dataKey="estimated" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="actual" fill="#1cc4bc" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -128,9 +138,9 @@ export default function Analytics() {
           {statusData.length === 0 ? <EmptyState>No tasks</EmptyState> : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={statusData}>
-                <XAxis dataKey="status" stroke="#64748b" fontSize={12} />
-                <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                <XAxis dataKey="status" stroke="#565f67" fontSize={12} />
+                <YAxis stroke="#565f67" fontSize={12} allowDecimals={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(20,49,79,0.05)' }} />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {statusData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Bar>
@@ -142,10 +152,11 @@ export default function Analytics() {
           {fl.tasksCompletedPerWeek.length === 0 ? <EmptyState>No completed tasks</EmptyState> : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={fl.tasksCompletedPerWeek}>
-                <XAxis dataKey="week" stroke="#64748b" fontSize={11} />
-                <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                <Bar dataKey="count" fill="#34d399" radius={[4, 4, 0, 0]} />
+                <XAxis dataKey="week" stroke="#565f67" fontSize={11} />
+                <YAxis stroke="#565f67" fontSize={12} allowDecimals={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(20,49,79,0.05)' }} />
+                {/* Completed = success green, darkened for AA contrast on white. */}
+                <Bar dataKey="count" fill="#1a7a4a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -155,7 +166,7 @@ export default function Analytics() {
             <ul className="space-y-2 text-sm">
               {fl.avgCycleByBucket.map((b) => (
                 <li key={b.bucket} className="list-row py-1.5 flex justify-between">
-                  <span className="text-slate-300">{b.bucket}</span>
+                  <span className="text-muted">{b.bucket}</span>
                   <span className="font-mono text-xs tabular-nums text-ink">{b.avgDays} days</span>
                 </li>
               ))}
@@ -165,13 +176,14 @@ export default function Analytics() {
         <ChartCard title="Priority distribution (open tasks)">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={priorityData}>
-              <XAxis dataKey="priority" stroke="#64748b" fontSize={12} />
-              <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
-              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+              <XAxis dataKey="priority" stroke="#565f67" fontSize={12} />
+              <YAxis stroke="#565f67" fontSize={12} allowDecimals={false} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(20,49,79,0.05)' }} />
+              {/* Priority cells: high=danger red, med=amber, low=neutral slate — all AA-darkened for white. */}
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                <Cell fill="#f87171" />
-                <Cell fill="#fbbf24" />
-                <Cell fill="#64748b" />
+                <Cell fill="#b91c1c" />
+                <Cell fill="#a06010" />
+                <Cell fill="#94a3b8" />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -181,8 +193,9 @@ export default function Analytics() {
             <ul className="space-y-2 text-sm">
               {fl.wipTasks.map((t) => (
                 <li key={t.id} className="list-row py-1.5 flex justify-between">
-                  <span className="text-slate-300">{t.title}</span>
-                  <span className="font-mono text-xs tabular-nums text-gold">{t.daysOpen} days</span>
+                  <span className="text-muted">{t.title}</span>
+                  {/* Days-open figure highlighted in AA-safe aqua-text (was bright gold). */}
+                  <span className="font-mono text-xs tabular-nums text-aqua-text">{t.daysOpen} days</span>
                 </li>
               ))}
             </ul>
@@ -195,7 +208,7 @@ export default function Analytics() {
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-subtle">
+            <tr className="border-b border-line">
               <th className="th pl-5">Leader</th>
               <th className="th">Tasks</th>
               <th className="th">Hours invested</th>
@@ -203,14 +216,14 @@ export default function Analytics() {
               <th className="th pr-5">Initiatives</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-line">
             {fl.supportedLeaders.map((l) => (
               <tr key={l.name} className="row-hover">
                 <td className="px-4 py-3 pl-5 font-medium text-ink">{l.name}</td>
                 <td className="px-4 py-3 font-mono text-xs tabular-nums">{l.tasks}</td>
                 <td className="px-4 py-3 font-mono text-xs tabular-nums">{l.hours}</td>
-                <td className="px-4 py-3 text-slate-400 text-xs">{l.buckets.join(', ')}</td>
-                <td className="px-4 py-3 pr-5 text-slate-400 text-xs">{l.initiatives.join(', ')}</td>
+                <td className="px-4 py-3 text-muted text-xs">{l.buckets.join(', ')}</td>
+                <td className="px-4 py-3 pr-5 text-muted text-xs">{l.initiatives.join(', ')}</td>
               </tr>
             ))}
           </tbody>
@@ -225,8 +238,9 @@ export default function Analytics() {
 function SectionHeading({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <h2 className="micro-title !text-gold/80">{children}</h2>
-      <span className="flex-1 h-px bg-white/[0.06]" />
+      {/* Section label in AA-safe aqua-text (was gold); divider hairline uses the line token. */}
+      <h2 className="micro-title !text-aqua-text">{children}</h2>
+      <span className="flex-1 h-px bg-line" />
     </div>
   );
 }
@@ -234,7 +248,7 @@ function SectionHeading({ children, className = '' }: { children: React.ReactNod
 function ChartCard({ title, children, wide }: { title: string; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className={`card p-6 ${wide ? 'lg:col-span-2' : ''}`}>
-      <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-slate-300 mb-4">{title}</h3>
+      <h3 className="text-[13px] font-semibold tracking-[-0.01em] text-navy mb-4">{title}</h3>
       {children}
     </div>
   );
@@ -247,7 +261,8 @@ function Donut({ data }: { data: { name: string; hours: number }[] }) {
       <PieChart>
         <Pie data={data} dataKey="hours" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
           {data.map((_, i) => (
-            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="#101829" />
+            // Slice borders match the white card bg so segments read as cleanly separated wedges.
+            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="#FFFFFF" />
           ))}
         </Pie>
         <Tooltip contentStyle={TOOLTIP_STYLE} />

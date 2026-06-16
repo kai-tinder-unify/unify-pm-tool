@@ -121,15 +121,19 @@ export default function NewTask() {
           <label className="label">Title *</label>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
           {possibleDuplicates.length > 0 && (
-            <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3.5 py-3">
-              <div className="flex items-center gap-2 text-[13px] font-medium text-amber-200">
+            // Warning/amber treatment for the non-blocking duplicate heads-up: on the
+            // light theme the old amber-500 alpha fills were near-invisible, so use the
+            // shared warn tint tokens (soft bg + AA-safe dark amber text + amber border).
+            <div className="mt-2 rounded-lg border border-warn-border bg-warn-bg px-3.5 py-3">
+              <div className="flex items-center gap-2 text-[13px] font-medium text-warn">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M8 1.5L15 14H1L8 1.5z" strokeLinejoin="round" />
                   <path d="M8 6.5v3.5M8 12h.01" strokeLinecap="round" />
                 </svg>
                 Possible duplicate{possibleDuplicates.length > 1 ? 's' : ''}
               </div>
-              <p className="text-xs text-amber-200/70 mt-1 mb-2.5">
+              {/* Slightly de-emphasized warn text for the body copy under the heading. */}
+              <p className="text-xs text-warn/80 mt-1 mb-2.5">
                 A similar task already exists — open it to check before creating a new one.
               </p>
               <ul className="space-y-1.5">
@@ -139,12 +143,15 @@ export default function NewTask() {
                       to={`/tasks/${t.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-medium text-ink truncate transition-colors hover:text-accent-hover"
+                      // Duplicate link: ink is correct on the light card; deepen to navy
+                      // on hover (old bright-aqua hover read poorly as a text color).
+                      className="font-medium text-ink truncate transition-colors hover:text-navy"
                     >
                       {t.title}
                     </Link>
                     <span className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-slate-400">for {t.requestedBy}</span>
+                      {/* Meta caption — slate-400 was too faint on paper, use muted token. */}
+                      <span className="text-xs text-muted">for {t.requestedBy}</span>
                       <StatusBadge status={t.status} />
                     </span>
                   </li>

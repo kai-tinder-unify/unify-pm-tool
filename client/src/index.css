@@ -2,37 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Unify Command Center — shared component layer (light theme).
+
+   These @layer classes are reused by every page, so re-skinning them here
+   cascades the brand across the whole app. The dark-theme idioms they replaced:
+     - white-alpha fills/borders (bg-white/[x], border-subtle) that VANISHED on a
+       light surface → now navy-alpha or explicit `line`/`paper` tints;
+     - a blue→navy button gradient → flat brand-navy primary, white outlined
+       secondary (Unify .btn-sm pattern);
+     - `text-ink`/`text-white` light text → `text-ink`(navy)/`text-navy`;
+     - blue focus/accent → aqua.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 @layer base {
   html {
-    @apply bg-navy-950 text-ink antialiased;
+    /* Light paper page + navy default text (was bg-navy-950 text-ink/light). */
+    @apply bg-paper text-ink antialiased;
   }
   body {
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* DM Sans is the Unify UI/body face. (Dropped the Inter `cv0x` features,
+       which were Inter-specific stylistic sets and do nothing for DM Sans.) */
+    font-family: 'DM Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
     @apply text-sm;
+    line-height: 1.65; /* Unify base body line-height */
   }
+  /* Brand-tint the text selection (was accent-blue at 30%). */
   ::selection {
-    background: rgba(47, 155, 239, 0.3);
+    background: rgba(28, 196, 188, 0.22);
   }
+  /* CRITICAL: the app is now a LIGHT UI, so native date/time pickers and other
+     form controls must render in light mode (was color-scheme: dark, which left
+     the calendar/clock popups dark-on-light and broken-looking). */
   input[type='date'],
   input[type='time'] {
-    color-scheme: dark;
+    color-scheme: light;
+  }
+  /* Native checkboxes/radios pick up the brand aqua instead of the UA blue. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: #1cc4bc;
   }
 
+  /* Scrollbars: flipped from white-alpha (invisible on light) to navy-alpha. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    scrollbar-color: rgba(20, 49, 79, 0.18) transparent;
   }
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(20, 49, 79, 0.15);
     border-radius: 8px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(20, 49, 79, 0.28);
   }
   *::-webkit-scrollbar-track {
     background: transparent;
@@ -41,75 +67,84 @@
 
 @layer components {
   /* ---- Typography hierarchy ---- */
+  /* Page H1: DM Sans bold navy (matches Unify .main-header h1 / .lib-section-title). */
   .page-title {
-    @apply text-xl font-semibold tracking-[-0.02em] text-white;
+    @apply text-xl font-bold tracking-[-0.02em] text-navy;
   }
   .section-title {
     @apply text-[15px] font-semibold tracking-[-0.01em] text-ink;
   }
+  /* Uppercase eyebrow / micro-label. */
   .micro-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-muted;
   }
-  /* Monospaced metadata: dates, hours, counts */
+  /* Monospaced metadata: dates, hours, counts (DM Mono, tabular). */
   .mono-meta {
-    @apply font-mono text-xs tabular-nums text-slate-500;
+    @apply font-mono text-xs tabular-nums text-muted;
+  }
+  /* Large display figures (KPI numbers): Fraunces 300, navy. Pair with a colored
+     unit <span>. Matches Unify .stat-value (Command Center variant). */
+  .display-figure {
+    @apply font-display font-light text-navy leading-none tracking-[-0.03em];
   }
 
-  /* ---- Surfaces (elevation: page → card → elevated → modal) ---- */
+  /* ---- Surfaces (white cards on paper; elevation via shadow + hairline) ---- */
   .card {
-    @apply bg-navy-900 border border-subtle rounded-xl shadow-card;
+    @apply bg-white border border-line rounded-xl shadow-card;
   }
   .card-elevated {
-    @apply bg-navy-850 border border-strong rounded-lg shadow-raised;
+    @apply bg-white border border-line rounded-lg shadow-raised;
   }
+  /* Hover RAISES the card (brighter border + soft shadow) instead of darkening it. */
   .card-hover {
-    @apply transition-all duration-150 hover:border-strong hover:bg-navy-850;
+    @apply transition-all duration-150 hover:border-aqua/50 hover:shadow-raised;
   }
 
+  /* ---- Inputs (Unify .field: white fill, navy text, aqua focus halo) ---- */
   .input {
-    @apply w-full bg-navy-950/70 border border-subtle rounded-lg px-3 py-2 text-sm text-ink
-      placeholder:text-slate-600 transition-colors duration-150
-      hover:border-strong
-      focus:outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/15 focus:bg-navy-950;
+    @apply w-full bg-white border border-line rounded-lg px-3 py-2 text-sm text-ink
+      placeholder:text-faint transition-colors duration-150
+      hover:border-aqua/60
+      focus:outline-none focus:border-aqua focus:ring-[3px] focus:ring-aqua/20;
   }
 
   /* ---- Buttons ---- */
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium
       select-none transition-all duration-150 active:translate-y-px
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua focus-visible:ring-offset-2 focus-visible:ring-offset-paper
       disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0;
   }
+  /* Primary = brand navy fill, white text, hover darkens to navy-deep (Unify .primary). */
   .btn-primary {
-    @apply btn text-white border border-accent/30;
-    background-image: linear-gradient(to bottom, #2389e3, #0e6cc2);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(4, 9, 20, 0.4);
+    @apply btn text-white bg-navy border border-navy;
+    box-shadow: 0 1px 2px rgba(20, 49, 79, 0.12);
   }
   .btn-primary:hover:not(:disabled) {
-    background-image: linear-gradient(to bottom, #3397ef, #1478d0);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(47, 155, 239, 0.35),
-      0 2px 10px rgba(47, 155, 239, 0.25);
+    @apply bg-navy-deep border-navy-deep;
   }
+  /* Secondary = white outlined button; hover shifts border to aqua + text to navy. */
   .btn-secondary {
-    @apply btn text-ink bg-white/[0.05] border border-subtle hover:bg-white/[0.08] hover:border-strong;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    @apply btn text-muted bg-white border border-line hover:border-aqua hover:text-navy;
   }
   .btn-danger {
-    @apply btn text-red-200 bg-red-500/10 border border-red-500/25 hover:bg-red-500/[0.18] hover:border-red-500/40;
+    @apply btn text-danger bg-danger-bg border border-danger-border hover:bg-[#fbd5d5] hover:border-danger/40;
   }
   .btn-ghost {
-    @apply btn px-2.5 py-1.5 text-slate-400 hover:text-ink hover:bg-white/[0.06];
+    @apply btn px-2.5 py-1.5 text-muted hover:text-navy hover:bg-paper-deep;
   }
 
+  /* Field label: 11px / 600 / uppercase / navy (Unify .field label). */
   .label {
-    @apply block text-[11px] font-medium text-slate-500 mb-1.5 uppercase tracking-wider;
+    @apply block text-[11px] font-semibold text-navy mb-1.5 uppercase tracking-[0.04em];
   }
 
   /* ---- Tables ---- */
   .th {
-    @apply px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-slate-500;
+    @apply px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted;
   }
   .row-hover {
-    @apply transition-colors duration-100 hover:bg-white/[0.03];
+    @apply transition-colors duration-100 hover:bg-paper;
   }
 
   /* ---- Pills (status / priority badges) ---- */
@@ -120,9 +155,9 @@
     @apply w-1.5 h-1.5 rounded-full shrink-0;
   }
 
-  /* Hoverable rows inside cards (bleeds into card padding) */
+  /* Hoverable rows inside cards (bleeds into card padding); light paper hover. */
   .list-row {
-    @apply -mx-2 rounded-md px-2 transition-colors duration-100 hover:bg-white/[0.03];
+    @apply -mx-2 rounded-md px-2 transition-colors duration-100 hover:bg-paper;
   }
 }
 

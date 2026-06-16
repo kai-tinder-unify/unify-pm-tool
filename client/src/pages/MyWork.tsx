@@ -77,7 +77,8 @@ export default function MyWork() {
       <div className="card card-hover px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <Link to={`/tasks/${task.id}`} className="font-medium text-ink transition-colors hover:text-accent-hover">
+            {/* text-ink is now navy on the white card; aqua-text on hover is the AA-safe link accent (bright aqua is decorative-only) */}
+            <Link to={`/tasks/${task.id}`} className="font-medium text-ink transition-colors hover:text-aqua-text">
               {task.title}
             </Link>
             <PriorityBadge priority={task.priority} />
@@ -87,7 +88,8 @@ export default function MyWork() {
               <span className="mono-meta">due {fmtDay(task.estimatedDueDate)}</span>
             ) : null}
           </div>
-          <div className="text-xs text-slate-500 mt-1.5">
+          {/* Meta line: text-muted reads cleanly on the light card (slate-500 was too washed on paper) */}
+          <div className="text-xs text-muted mt-1.5">
             for {task.requestedBy} · {task.bucket}
             {myAssignment && (
               <span className="font-mono tabular-nums"> · {myAssignment.hoursLogged} hrs logged</span>
@@ -95,8 +97,9 @@ export default function MyWork() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Secondary link-button: AA-safe aqua-text label, navy on hover, faint aqua tint behind on hover */}
           <button
-            className="text-accent text-[13px] font-medium px-2 py-1 rounded-md transition-colors hover:text-accent-hover hover:bg-accent/10"
+            className="text-aqua-text text-[13px] font-medium px-2 py-1 rounded-md transition-colors hover:text-navy hover:bg-aqua/10"
             onClick={() => setHoursModal({ task, existing: myAssignment })}
           >
             Log Hours
@@ -124,8 +127,9 @@ export default function MyWork() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {summary.map((c) => (
           <div key={c.label} className="card card-hover px-5 py-4">
-            <div className="text-[26px] font-semibold tracking-tight text-white leading-none tabular-nums">{c.value}</div>
-            <div className="text-xs text-slate-500 mt-2">{c.label}</div>
+            {/* KPI figure: display-figure renders the Fraunces navy stat face; text-white would have been invisible on the white card */}
+            <div className="display-figure text-[26px] text-navy leading-none tabular-nums">{c.value}</div>
+            <div className="text-xs text-muted mt-2">{c.label}</div>
           </div>
         ))}
       </div>

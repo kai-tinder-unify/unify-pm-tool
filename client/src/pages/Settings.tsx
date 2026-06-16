@@ -111,7 +111,7 @@ export default function Settings() {
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-subtle">
+            <tr className="border-b border-line">
               <th className="th !px-0 pr-3">Name</th>
               <th className="th !px-0 pr-3">Email</th>
               <th className="th !px-0 pr-3">Role</th>
@@ -120,37 +120,42 @@ export default function Settings() {
               <th className="th !px-0"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-line">
             {allUsers.map((u) => (
               <tr key={u.id} className={`row-hover ${u.isActive ? '' : 'opacity-50'}`}>
                 <td className="py-3 pr-3 font-medium text-ink">{u.name}</td>
-                <td className="py-3 pr-3 text-slate-400">{u.email}</td>
-                <td className="py-3 pr-3 capitalize text-slate-300">{u.role}</td>
+                {/* Secondary/meta text reads as muted on the light paper surface (slate-400 was too faint) */}
+                <td className="py-3 pr-3 text-muted">{u.email}</td>
+                <td className="py-3 pr-3 capitalize text-muted">{u.role}</td>
                 <td className="py-3 pr-3">
                   <span className="mono-meta">{u.pingTime || 'team default'}</span>
                 </td>
                 <td className="py-3 pr-3">
                   {u.isActive ? (
-                    <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
-                      <span className="pill-dot bg-emerald-400" />
+                    // Active = success tint trio (tint bg + dark AA-safe text + soft border) for light surfaces
+                    <span className="pill bg-success-bg text-success border-success-border">
+                      <span className="pill-dot bg-success" />
                       Active
                     </span>
                   ) : (
-                    <span className="pill bg-white/[0.04] text-slate-400 border-white/[0.08]">
-                      <span className="pill-dot bg-slate-500" />
+                    // Deactivated = neutral chip; the old white-overlay fill was invisible on paper
+                    <span className="pill bg-paper-deep text-muted border-line">
+                      <span className="pill-dot bg-muted" />
                       Deactivated
                     </span>
                   )}
                 </td>
                 <td className="py-3 text-right whitespace-nowrap text-[13px] font-medium">
                   <button
-                    className="text-accent px-2 py-1 rounded-md transition-colors hover:text-accent-hover hover:bg-accent/10 mr-1"
+                    // Link-style action: AA-safe aqua text -> navy on hover, aqua tint hover well
+                    className="text-aqua-text px-2 py-1 rounded-md transition-colors hover:text-navy hover:bg-aqua/10 mr-1"
                     onClick={() => setUserModal({ open: true, user: u })}
                   >
                     Edit
                   </button>
                   <button
-                    className="text-slate-400 px-2 py-1 rounded-md transition-colors hover:text-ink hover:bg-white/[0.06]"
+                    // Muted secondary action -> navy on hover with a recessed paper-deep hover well
+                    className="text-muted px-2 py-1 rounded-md transition-colors hover:text-navy hover:bg-paper-deep"
                     onClick={() => toggleActive(u)}
                   >
                     {u.isActive ? 'Deactivate' : 'Reactivate'}
@@ -165,7 +170,7 @@ export default function Settings() {
       {/* Buckets & initiatives */}
       <section className="card p-6 space-y-4">
         <h2 className="section-title">Buckets &amp; initiatives</h2>
-        <p className="text-xs text-slate-500">One label per line. Changes apply everywhere immediately — no deploy needed.</p>
+        <p className="text-xs text-muted">One label per line. Changes apply everywhere immediately — no deploy needed.</p>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <label className="label">Buckets</label>
@@ -200,7 +205,7 @@ export default function Settings() {
             <input className="input" value={form.smtpUser || ''} onChange={(e) => set('smtpUser', e.target.value)} />
           </div>
           <div>
-            <label className="label">Password {data?.smtpPassSet && <span className="text-emerald-400 normal-case">(set)</span>}</label>
+            <label className="label">Password {data?.smtpPassSet && <span className="text-success normal-case">(set)</span>}</label>
             <input
               type="password"
               className="input"
@@ -227,8 +232,8 @@ export default function Settings() {
         <div>
           <label className="label">Channel webhook URL (Power Automate Workflows)</label>
           <input className="input" value={form.teamsWebhookUrl || ''} onChange={(e) => set('teamsWebhookUrl', e.target.value)} />
-          <p className="text-xs text-slate-500 mt-1">
-            On the target Teams channel, add a <span className="text-slate-300">Workflows</span> automation from the
+          <p className="text-xs text-muted mt-1">
+            On the target Teams channel, add a <span className="font-medium text-ink">Workflows</span> automation from the
             "Post to a channel when a webhook request is received" template, then paste its URL here. Used for the
             weekly briefing and the notifications below.
           </p>
@@ -270,7 +275,7 @@ export default function Settings() {
             Daily pings enabled
           </label>
         </div>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted">
           Individual users can override their own ping time from their profile page.
         </p>
       </section>

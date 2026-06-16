@@ -71,27 +71,31 @@ export default function Briefings() {
           {(data || []).map((b) => (
             <div key={b.id} className="card card-hover px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
               <button
-                className="text-left font-medium text-ink transition-colors hover:text-accent-hover"
+                // Title is primary text (text-ink is navy on light) with an aqua-text -> navy hover.
+                className="text-left font-medium text-ink transition-colors hover:text-aqua-text"
                 onClick={() => setSelected(b)}
               >
                 Week of {fmtDate(b.weekStart)} – {fmtDate(b.weekEnd)}
               </button>
               <div className="flex items-center gap-2 text-xs">
                 {!b.sentViaEmail && !b.sentViaTeams && (
-                  <span className="pill bg-white/[0.04] text-slate-400 border-white/[0.08]">
-                    <span className="pill-dot bg-slate-500" />
+                  // Draft = neutral chip (tint + muted text + hairline border) on light paper.
+                  <span className="pill bg-paper-deep text-muted border-line">
+                    <span className="pill-dot bg-[#C2C2C2]" />
                     Draft
                   </span>
                 )}
                 {b.sentViaEmail && (
-                  <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
-                    <span className="pill-dot bg-emerald-400" />
+                  // Email sent = success chip using the shared success trio.
+                  <span className="pill bg-success-bg text-success border-success-border">
+                    <span className="pill-dot bg-success" />
                     Email sent
                   </span>
                 )}
                 {b.sentViaTeams && (
-                  <span className="pill bg-accent/10 text-accent-hover border-accent/25">
-                    <span className="pill-dot bg-accent" />
+                  // Teams sent = aqua (in-progress/info) chip; aqua-text keeps small text AA-safe.
+                  <span className="pill bg-aqua-light text-aqua-text border-aqua/30">
+                    <span className="pill-dot bg-aqua" />
                     Teams sent
                   </span>
                 )}
@@ -117,7 +121,8 @@ export default function Briefings() {
       {selected && (
         <Modal title={`Week of ${fmtDate(selected.weekStart)}`} onClose={() => setSelected(null)} wide>
           <div
-            className="prose-briefing text-sm leading-relaxed [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-white [&_h3]:text-gold [&_h3]:font-medium [&_h3]:mt-4 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5"
+            // Rendered markdown viewer: h2 = navy heading, h3 = aqua-text subheading (both legible on the white modal).
+            className="prose-briefing text-sm leading-relaxed [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-navy [&_h3]:text-aqua-text [&_h3]:font-medium [&_h3]:mt-4 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5"
             dangerouslySetInnerHTML={{ __html: marked.parse(selected.content) as string }}
           />
         </Modal>

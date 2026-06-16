@@ -109,13 +109,14 @@ export default function TaskDetail() {
       <div>
         <Link
           to="/tasks"
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-500 transition-colors hover:text-accent-hover"
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-slate-500 transition-colors hover:text-aqua-text"
         >
           ← Tasks
         </Link>
         <div className="flex items-start justify-between gap-4 mt-2 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-white">{task.title}</h1>
+            {/* Page title sits on the light paper background, so it must use the navy brand ink rather than white. */}
+            <h1 className="text-2xl font-semibold tracking-[-0.02em] text-navy">{task.title}</h1>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <PriorityBadge priority={task.priority} />
               <StatusBadge status={task.status} />
@@ -246,16 +247,16 @@ export default function TaskDetail() {
         </div>
         <div>
           <label className="label">Entry date</label>
-          <div className="py-2"><span className="mono-meta !text-slate-300">{fmtDay(task.submittedAt)}</span></div>
+          <div className="py-2"><span className="mono-meta !text-muted">{fmtDay(task.submittedAt)}</span></div>
         </div>
         <div>
           <label className="label">Logged by</label>
-          <div className="py-2 text-slate-300">{task.createdBy.name}</div>
+          <div className="py-2 text-muted">{task.createdBy.name}</div>
         </div>
         <div>
           <label className="label">Hours</label>
           <div className="py-2">
-            <span className="font-mono text-xs tabular-nums text-slate-300">
+            <span className="font-mono text-xs tabular-nums text-muted">
               {Math.round(totalHours * 10) / 10} logged
             </span>
           </div>
@@ -263,14 +264,14 @@ export default function TaskDetail() {
         {task.description && (
           <div className="col-span-2 md:col-span-3">
             <label className="label">Description</label>
-            <p className="text-slate-300 whitespace-pre-wrap">{task.description}</p>
+            <p className="text-muted whitespace-pre-wrap">{task.description}</p>
           </div>
         )}
       </div>
 
       {/* Contributors — multiple people, individual hours */}
       <div className="card">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-subtle">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="section-title">
             Contributors{' '}
             <span className="font-mono text-xs tabular-nums text-slate-500 ml-1">({task.assignments.length})</span>
@@ -302,7 +303,7 @@ export default function TaskDetail() {
                   <th className="th !px-0"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-line">
                 {task.assignments.map((a) => (
                   <tr key={a.id} className="row-hover">
                     <td className="py-2.5 pr-3 font-medium text-ink">{a.user.name}</td>
@@ -311,18 +312,19 @@ export default function TaskDetail() {
                       {a.endDate ? (
                         <span className="mono-meta">{fmtDay(a.endDate)}</span>
                       ) : (
-                        <span className="pill bg-emerald-500/10 text-emerald-300 border-emerald-500/25">
-                          <span className="pill-dot bg-emerald-400" />
+                        // "active" = no end date yet: success tint trio (light-mode safe) with a solid success dot.
+                        <span className="pill bg-success-bg text-success border-success-border">
+                          <span className="pill-dot bg-success" />
                           active
                         </span>
                       )}
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-xs tabular-nums text-ink">{a.hoursLogged}</td>
-                    <td className="py-2.5 pr-3 text-slate-400 max-w-[200px] truncate">{a.notes || '—'}</td>
+                    <td className="py-2.5 pr-3 text-muted max-w-[200px] truncate">{a.notes || '—'}</td>
                     <td className="py-2.5 text-right whitespace-nowrap text-[13px] font-medium">
                       {(isAdmin || a.userId === user?.id) && (
                         <button
-                          className="text-accent px-1.5 py-0.5 rounded transition-colors hover:text-accent-hover hover:bg-accent/10 mr-1"
+                          className="text-aqua-text px-1.5 py-0.5 rounded transition-colors hover:text-navy hover:bg-aqua/10 mr-1"
                           onClick={() => setHoursModal(a)}
                         >
                           Edit
@@ -330,7 +332,7 @@ export default function TaskDetail() {
                       )}
                       {isAdmin && (
                         <button
-                          className="text-red-400/70 px-1.5 py-0.5 rounded transition-colors hover:text-red-300 hover:bg-red-500/10"
+                          className="text-danger/80 px-1.5 py-0.5 rounded transition-colors hover:text-danger hover:bg-danger-bg"
                           onClick={() => deleteAssignment(a)}
                         >
                           Remove
@@ -356,7 +358,7 @@ export default function TaskDetail() {
       )}
       {confirmDelete && (
         <Modal title="Delete task" onClose={() => setConfirmDelete(false)}>
-          <p className="text-sm text-slate-300 mb-4">
+          <p className="text-sm text-muted mb-4">
             Delete <strong>{task.title}</strong>? This cannot be undone and removes all logged hours.
           </p>
           <div className="flex justify-end gap-2">
