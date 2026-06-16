@@ -1,14 +1,19 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 const prisma = new PrismaClient();
 
+// Work types (kept as-is). Tasks carry one of these as `bucket`.
 const BUCKETS = [
   'Proposal/Delivery Support',
   'Internal Operations Support',
   'Business Development Support',
 ];
 
+// Strategic initiatives (kept as-is). Not tracked per-task in the source sheets,
+// so seeded tasks leave `initiative` null; the list still drives the picker.
 const INITIATIVES = [
   'Artificial Intelligence Management Consulting Firm of Choice',
   'All In for Unify',
@@ -16,26 +21,77 @@ const INITIATIVES = [
   'Alliance Investment',
 ];
 
-// Calendar-day fields (submitted / due / start / end) are stored at UTC midnight,
-// matching how the app persists date-picker values, so they display correctly.
-function daysAgo(n: number): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() - n);
-  return d;
+// --- Date helpers --------------------------------------------------------------
+// Calendar-day fields (submitted / due / start) are stored at UTC midnight, matching
+// how the app persists date-picker values, so they display on the correct day.
+function calDay(s: string | null | undefined): Date | null {
+  return s ? new Date(`${s}T00:00:00Z`) : null;
+}
+// `updatedAt` is a true timestamp the app compares against "now" (e.g. Pulse's
+// "completed since last meeting", weekly briefing windows). We stamp it at NOON UTC
+// of the real activity date so the calendar-day still resolves correctly for users
+// in US timezones (local midnight Monday lands a few hours into the UTC day; noon
+// clears it) — UTC midnight would read as the previous day and drop from the window.
+function stamp(s: string): Date {
+  return new Date(`${s}T12:00:00Z`);
 }
 
-function daysFromNow(n: number): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d;
+// --- Shape of the seed dataset (see build-seed-data.py for the sheet -> JSON map) ---
+type SeedUser = { name: string; email: string; role: 'admin' | 'member'; pingTime: string | null };
+type SeedAssignment = {
+  userEmail: string;
+  startDate: string | null;
+  endDate: string | null;
+  hoursLogged: number;
+  notes: string | null;
+  touchedAt: string; // real "last touched" date -> backdated assignment.updatedAt
+};
+type SeedTask = {
+  title: string;
+  description: string | null;
+  requestedBy: string;
+  bucket: string;
+  initiative: string | null;
+  status: 'not_started' | 'in_progress' | 'blocked' | 'complete' | 'paused';
+  priority: 'high' | 'medium' | 'low';
+  isWip: boolean;
+  submittedAt: string;
+  estimatedDueDate: string | null;
+  targetStartDate: string | null;
+  estimatedHours: number | null;
+  updatedAt: string; // real completion / last-activity date -> backdated task.updatedAt
+  ownerEmail: string | null;
+  createdByEmail: string;
+  assignments: SeedAssignment[];
+};
+type SeedData = { users: SeedUser[]; tasks: SeedTask[] };
+
+// Synthetic account for developers to log in and test admin features without touching
+// a real person's account. Safe to commit: it's fictional, owns no tasks, contributes
+// 0 hours, and uses the reserved `.test` TLD (RFC 2606) so it can never resolve to a
+// real inbox. It's added on top of whichever dataset loads, so it's always present.
+const DEV_ACCOUNTS: SeedUser[] = [
+  { name: 'Dev Admin', email: 'dev@ascendhub.test', role: 'admin', pingTime: null },
+];
+
+// Load the dataset: the real, gitignored seed-data.json if it's present, otherwise
+// the committed synthetic seed-data.example.json — so a fresh clone / CI still boots
+// with safe demo data, and a developer's real file transparently takes over once
+// dropped in. See the README "Seeding" section for how the real file is distributed.
+function loadSeedData(): { data: SeedData; source: string } {
+  const realPath = join(__dirname, 'seed-data.json');
+  const examplePath = join(__dirname, 'seed-data.example.json');
+  const path = existsSync(realPath) ? realPath : examplePath;
+  const data = JSON.parse(readFileSync(path, 'utf-8')) as SeedData;
+  return { data, source: existsSync(realPath) ? 'seed-data.json (real)' : 'seed-data.example.json (synthetic)' };
 }
 
 async function main() {
-  console.log('Seeding Unify Ascend Task Hub...');
+  const { data, source } = loadSeedData();
+  console.log(`Seeding Unify Ascend Task Hub from ${source}...`);
 
-  // --- AppSettings ---
+  // --- AppSettings (buckets/initiatives kept; ping + briefing config preserved) ---
+  // upsert so re-running never clobbers values an admin may have changed in the UI.
   const settings: Record<string, string> = {
     buckets: JSON.stringify(BUCKETS),
     initiatives: JSON.stringify(INITIATIVES),
@@ -52,197 +108,101 @@ async function main() {
     briefingDistributionList: '',
   };
   for (const [key, value] of Object.entries(settings)) {
-    await prisma.appSetting.upsert({
-      where: { key },
-      update: {},
-      create: { key, value },
+    await prisma.appSetting.upsert({ where: { key }, update: {}, create: { key, value } });
+  }
+
+  // --- Full wipe -----------------------------------------------------------------
+  // This is a "redo the seed" reset: clear all transactional rows in FK-safe order,
+  // then users, so the database reflects only the current dataset. (AppSettings is
+  // left intact — upserted above.)
+  await prisma.checkIn.deleteMany();
+  await prisma.taskAssignment.deleteMany();
+  await prisma.weeklyBriefing.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.user.deleteMany();
+
+  // --- Users ---------------------------------------------------------------------
+  // The dataset's users plus the always-on synthetic Dev Admin. Shared default
+  // password for the initial rollout; users can change it later.
+  const passwordHash = await bcrypt.hash('ascend123', 10);
+  const emailToId = new Map<string, string>();
+  for (const u of [...data.users, ...DEV_ACCOUNTS]) {
+    const created = await prisma.user.create({
+      data: { name: u.name, email: u.email, role: u.role, pingTime: u.pingTime, passwordHash },
     });
+    emailToId.set(u.email, created.id);
   }
 
-  // --- Users: 1 admin + 4 members (2 with custom ping times) ---
-  const password = await bcrypt.hash('ascend123', 10);
-  const usersData = [
-    { name: 'Kai Tinder', email: 'ktinder@unifyconsulting.com', role: 'admin' as const, pingTime: null },
-    { name: 'Maya Castellanos', email: 'mcastellanos@unifyconsulting.com', role: 'member' as const, pingTime: '07:30' },
-    { name: 'Derek Whitfield', email: 'dwhitfield@unifyconsulting.com', role: 'member' as const, pingTime: null },
-    { name: 'Priya Raghunathan', email: 'praghunathan@unifyconsulting.com', role: 'member' as const, pingTime: '09:00' },
-    { name: 'Jordan Okafor', email: 'jokafor@unifyconsulting.com', role: 'member' as const, pingTime: null },
-  ];
+  // --- Tasks + assignments -------------------------------------------------------
+  // Collect (row id -> real timestamp) so we can backdate `updatedAt` after creation;
+  // Prisma's @updatedAt would otherwise force every row to "now", collapsing all
+  // history onto today and breaking the date-based views.
+  const taskStamps: { id: string; at: Date }[] = [];
+  const assignmentStamps: { id: string; at: Date }[] = [];
 
-  const users = [];
-  for (const u of usersData) {
-    users.push(
-      await prisma.user.upsert({
-        where: { email: u.email },
-        update: {},
-        create: { ...u, passwordHash: password },
-      }),
-    );
-  }
-  const [kai, maya, derek, priya, jordan] = users;
+  for (const t of data.tasks) {
+    const ownerId = t.ownerEmail ? emailToId.get(t.ownerEmail) ?? null : null;
+    const createdById = emailToId.get(t.createdByEmail)!;
 
-  // Idempotency: if tasks already exist, skip sample data
-  const existing = await prisma.task.count();
-  if (existing > 0) {
-    console.log('Sample data already present — skipping tasks/assignments.');
-    return;
-  }
-
-  // --- Tasks (10): mix of leaders, priorities, statuses, WIP, due dates; some without an initiative ---
-  const t1 = await prisma.task.create({
-    data: {
-      title: 'Draft assessment dimension model',
-      description: 'Define the 6 maturity dimensions and scoring rubric for AI advisory pursuits.',
-      requestedBy: 'Sandra Liu', submittedAt: daysAgo(21),
-      status: 'complete', priority: 'high', isWip: false,
-      estimatedDueDate: daysAgo(7), targetStartDate: daysAgo(20), estimatedHours: 16,
-      bucket: BUCKETS[0], initiative: INITIATIVES[0],
-      ownerId: maya.id, createdById: kai.id,
-    },
-  });
-  const t2 = await prisma.task.create({
-    data: {
-      title: 'Build slide library v1',
-      description: 'Translate the dimension model into a branded slide library.',
-      requestedBy: 'Sandra Liu', submittedAt: daysAgo(21),
-      status: 'in_progress', priority: 'high', isWip: false,
-      estimatedDueDate: daysFromNow(5), targetStartDate: daysAgo(6), estimatedHours: 24,
-      bucket: BUCKETS[0], initiative: INITIATIVES[0],
-      ownerId: derek.id, createdById: kai.id,
-    },
-  });
-  const t3 = await prisma.task.create({
-    data: {
-      title: 'Maintain AI pursuit intel tracker',
-      description: 'Ongoing tracker of active AI pursuits and reusable artifacts.',
-      requestedBy: 'Sandra Liu', submittedAt: daysAgo(18),
-      status: 'in_progress', priority: 'medium', isWip: true,
-      bucket: BUCKETS[0], initiative: INITIATIVES[0],
-      ownerId: priya.id, createdById: maya.id,
-    },
-  });
-  const t4 = await prisma.task.create({
-    data: {
-      title: 'Audit current utilization data sources',
-      requestedBy: 'Marcus Bell', submittedAt: daysAgo(14),
-      status: 'complete', priority: 'medium', isWip: false,
-      estimatedDueDate: daysAgo(5), targetStartDate: daysAgo(13), estimatedHours: 8,
-      bucket: BUCKETS[1], initiative: INITIATIVES[1],
-      ownerId: maya.id, createdById: maya.id,
-    },
-  });
-  const t5 = await prisma.task.create({
-    data: {
-      title: 'Rebuild rollup workbook',
-      description: 'Standardized monthly rollup with practice-level pivots.',
-      requestedBy: 'Marcus Bell', submittedAt: daysAgo(14),
-      status: 'in_progress', priority: 'high', isWip: false,
-      estimatedDueDate: daysFromNow(3), estimatedHours: 20,
-      bucket: BUCKETS[1], initiative: INITIATIVES[1],
-      ownerId: maya.id, createdById: maya.id,
-    },
-  });
-  const t6 = await prisma.task.create({
-    data: {
-      title: 'Document the monthly process',
-      requestedBy: 'Marcus Bell', submittedAt: daysAgo(12),
-      status: 'blocked', priority: 'low', isWip: false,
-      estimatedDueDate: daysFromNow(10),
-      bucket: BUCKETS[1], initiative: null,
-      ownerId: jordan.id, createdById: maya.id,
-    },
-  });
-  const t7 = await prisma.task.create({
-    data: {
-      title: 'Compile account brief: Meridian Health',
-      requestedBy: 'Tara Nguyen', submittedAt: daysAgo(10),
-      status: 'not_started', priority: 'high', isWip: false,
-      estimatedDueDate: daysFromNow(7), targetStartDate: daysFromNow(1), estimatedHours: 10,
-      bucket: BUCKETS[2], initiative: INITIATIVES[2],
-      ownerId: derek.id, createdById: derek.id,
-    },
-  });
-  const t8 = await prisma.task.create({
-    data: {
-      title: 'Refresh healthcare win/loss themes',
-      description: 'Ongoing synthesis of win/loss notes across the portfolio.',
-      requestedBy: 'Tara Nguyen', submittedAt: daysAgo(10),
-      status: 'in_progress', priority: 'medium', isWip: true,
-      bucket: BUCKETS[2], initiative: null,
-      ownerId: jordan.id, createdById: derek.id,
-    },
-  });
-  const t9 = await prisma.task.create({
-    data: {
-      title: 'Co-sell one-pagers (3 offerings)',
-      requestedBy: 'Sandra Liu', submittedAt: daysAgo(35),
-      status: 'complete', priority: 'high', isWip: false,
-      estimatedDueDate: daysAgo(15), estimatedHours: 12,
-      bucket: BUCKETS[2], initiative: INITIATIVES[3],
-      ownerId: priya.id, createdById: kai.id,
-    },
-  });
-  const t10 = await prisma.task.create({
-    data: {
-      title: 'Internal alliance FAQ',
-      requestedBy: 'Sandra Liu', submittedAt: daysAgo(35),
-      status: 'complete', priority: 'medium', isWip: false,
-      estimatedDueDate: daysAgo(16), estimatedHours: 6,
-      bucket: BUCKETS[2], initiative: INITIATIVES[3],
-      ownerId: jordan.id, createdById: kai.id,
-    },
-  });
-
-  // Paused: deliberately parked until the next leadership sync
-  await prisma.task.create({
-    data: {
-      title: 'Partner co-marketing deck',
-      description: 'On hold pending alliance direction from the next leadership sync.',
-      requestedBy: 'Tara Nguyen', submittedAt: daysAgo(8),
-      status: 'paused', priority: 'low', isWip: false,
-      bucket: BUCKETS[2], initiative: INITIATIVES[3],
-      ownerId: jordan.id, createdById: derek.id,
-    },
-  });
-  // Unowned: entered into the pipeline before anyone has picked it up
-  await prisma.task.create({
-    data: {
-      title: 'Refresh pricing model',
-      requestedBy: 'Marcus Bell', submittedAt: daysAgo(1),
-      status: 'not_started', priority: 'medium', isWip: false,
-      estimatedDueDate: daysFromNow(4), estimatedHours: 5,
-      bucket: BUCKETS[1], initiative: null,
-      ownerId: null, createdById: kai.id,
-    },
-  });
-
-  // --- TaskAssignments: backdated, multi-contributor ---
-  const assignments = [
-    { taskId: t1.id, userId: maya.id, startDate: daysAgo(20), endDate: daysAgo(7), hoursLogged: 14.5, notes: 'Rubric finalized after two leadership reviews.' },
-    { taskId: t1.id, userId: kai.id, startDate: daysAgo(18), endDate: daysAgo(8), hoursLogged: 4, notes: 'Review and leadership alignment.' },
-    { taskId: t2.id, userId: derek.id, startDate: daysAgo(6), endDate: null, hoursLogged: 11, notes: 'Through dimension 4 of 6.' },
-    { taskId: t2.id, userId: priya.id, startDate: daysAgo(4), endDate: null, hoursLogged: 5.5, notes: 'Visual design pass on completed sections.' },
-    { taskId: t3.id, userId: priya.id, startDate: daysAgo(15), endDate: null, hoursLogged: 9, notes: 'Weekly upkeep, ~1.5 hrs/week.' },
-    { taskId: t4.id, userId: maya.id, startDate: daysAgo(13), endDate: daysAgo(5), hoursLogged: 7, notes: null },
-    { taskId: t5.id, userId: maya.id, startDate: daysAgo(4), endDate: null, hoursLogged: 8, notes: 'Pivot structure done; validation remaining.' },
-    { taskId: t5.id, userId: jordan.id, startDate: daysAgo(3), endDate: null, hoursLogged: 3, notes: 'Data validation support.' },
-    { taskId: t6.id, userId: jordan.id, startDate: daysAgo(2), endDate: null, hoursLogged: 1, notes: 'Blocked on final workbook structure.' },
-    { taskId: t8.id, userId: jordan.id, startDate: daysAgo(9), endDate: null, hoursLogged: 6, notes: null },
-    { taskId: t9.id, userId: priya.id, startDate: daysAgo(30), endDate: daysAgo(15), hoursLogged: 13, notes: 'All three one-pagers approved.' },
-    { taskId: t10.id, userId: jordan.id, startDate: daysAgo(28), endDate: daysAgo(16), hoursLogged: 5, notes: null },
-    { taskId: t10.id, userId: kai.id, startDate: daysAgo(20), endDate: daysAgo(16), hoursLogged: 1.5, notes: 'Final review.' },
-  ];
-  for (const a of assignments) {
-    await prisma.taskAssignment.upsert({
-      where: { taskId_userId: { taskId: a.taskId, userId: a.userId } },
-      update: {},
-      create: a,
+    const task = await prisma.task.create({
+      data: {
+        title: t.title,
+        description: t.description,
+        requestedBy: t.requestedBy,
+        submittedAt: calDay(t.submittedAt)!,
+        status: t.status,
+        priority: t.priority,
+        isWip: t.isWip,
+        estimatedDueDate: calDay(t.estimatedDueDate),
+        targetStartDate: calDay(t.targetStartDate),
+        estimatedHours: t.estimatedHours,
+        bucket: t.bucket,
+        initiative: t.initiative,
+        ownerId,
+        createdById,
+        // createdAt drives "WIP age" — anchor it to intake, not seed time.
+        createdAt: calDay(t.submittedAt)!,
+      },
     });
+    taskStamps.push({ id: task.id, at: stamp(t.updatedAt) });
+
+    for (const a of t.assignments) {
+      const userId = emailToId.get(a.userEmail);
+      if (!userId) continue; // unknown contributor — skip rather than fabricate
+      const assignment = await prisma.taskAssignment.create({
+        data: {
+          taskId: task.id,
+          userId,
+          startDate: calDay(a.startDate),
+          endDate: calDay(a.endDate),
+          hoursLogged: a.hoursLogged,
+          notes: a.notes,
+          createdAt: calDay(a.startDate) ?? calDay(t.submittedAt)!,
+        },
+      });
+      assignmentStamps.push({ id: assignment.id, at: stamp(a.touchedAt) });
+    }
   }
 
-  console.log('Seed complete.');
-  console.log('Login: ktinder@unifyconsulting.com / ascend123 (admin)');
-  console.log('       mcastellanos@unifyconsulting.com / ascend123 (member)');
+  // --- Backdate updatedAt via raw SQL (bypasses Prisma's @updatedAt) -------------
+  // One transaction keeps the ~hundreds of small updates fast and atomic.
+  await prisma.$transaction([
+    ...taskStamps.map((s) =>
+      prisma.$executeRaw`UPDATE "Task" SET "updatedAt" = ${s.at} WHERE "id" = ${s.id}`,
+    ),
+    ...assignmentStamps.map((s) =>
+      prisma.$executeRaw`UPDATE "TaskAssignment" SET "updatedAt" = ${s.at} WHERE "id" = ${s.id}`,
+    ),
+  ]);
+
+  const adminEmails = [...data.users, ...DEV_ACCOUNTS]
+    .filter((u) => u.role === 'admin')
+    .map((u) => u.email);
+  console.log(
+    `Seed complete: ${data.users.length + DEV_ACCOUNTS.length} users, ` +
+      `${data.tasks.length} tasks, ${assignmentStamps.length} assignments.`,
+  );
+  console.log(`Admin logins (password 'ascend123'): ${adminEmails.join(', ')}`);
 }
 
 main()

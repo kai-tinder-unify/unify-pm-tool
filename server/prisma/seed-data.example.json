@@ -1,0 +1,190 @@
+{
+  "users": [
+    { "name": "Avery Chen", "email": "avery.chen@example.com", "role": "admin", "pingTime": null },
+    { "name": "Maya Castellanos", "email": "maya.castellanos@example.com", "role": "member", "pingTime": "07:30" },
+    { "name": "Derek Whitfield", "email": "derek.whitfield@example.com", "role": "member", "pingTime": null },
+    { "name": "Priya Raghunathan", "email": "priya.raghunathan@example.com", "role": "member", "pingTime": "09:00" },
+    { "name": "Jordan Okafor", "email": "jordan.okafor@example.com", "role": "member", "pingTime": null }
+  ],
+  "tasks": [
+    {
+      "title": "Draft assessment dimension model",
+      "description": "Define the 6 maturity dimensions and scoring rubric for AI advisory pursuits.",
+      "requestedBy": "Sandra Liu",
+      "bucket": "Proposal/Delivery Support",
+      "initiative": "Artificial Intelligence Management Consulting Firm of Choice",
+      "status": "complete",
+      "priority": "high",
+      "isWip": false,
+      "submittedAt": "2026-05-26",
+      "estimatedDueDate": "2026-06-09",
+      "targetStartDate": "2026-05-27",
+      "estimatedHours": 18,
+      "updatedAt": "2026-06-15",
+      "ownerEmail": "maya.castellanos@example.com",
+      "createdByEmail": "avery.chen@example.com",
+      "assignments": [
+        { "userEmail": "maya.castellanos@example.com", "startDate": "2026-05-27", "endDate": "2026-06-15", "hoursLogged": 14.5, "notes": "Rubric finalized after two leadership reviews.", "touchedAt": "2026-06-15" },
+        { "userEmail": "avery.chen@example.com", "startDate": "2026-05-29", "endDate": "2026-06-14", "hoursLogged": 4, "notes": "Review and leadership alignment.", "touchedAt": "2026-06-14" }
+      ]
+    },
+    {
+      "title": "Build slide library v1",
+      "description": "Translate the dimension model into a branded slide library.",
+      "requestedBy": "Sandra Liu",
+      "bucket": "Proposal/Delivery Support",
+      "initiative": "Artificial Intelligence Management Consulting Firm of Choice",
+      "status": "in_progress",
+      "priority": "high",
+      "isWip": false,
+      "submittedAt": "2026-06-08",
+      "estimatedDueDate": "2026-06-21",
+      "targetStartDate": "2026-06-09",
+      "estimatedHours": 24,
+      "updatedAt": "2026-06-12",
+      "ownerEmail": "derek.whitfield@example.com",
+      "createdByEmail": "avery.chen@example.com",
+      "assignments": [
+        { "userEmail": "derek.whitfield@example.com", "startDate": "2026-06-09", "endDate": null, "hoursLogged": 11, "notes": "Through dimension 4 of 6.", "touchedAt": "2026-06-12" },
+        { "userEmail": "priya.raghunathan@example.com", "startDate": "2026-06-11", "endDate": null, "hoursLogged": 5.5, "notes": "Visual design pass on completed sections.", "touchedAt": "2026-06-12" }
+      ]
+    },
+    {
+      "title": "Maintain AI pursuit intel tracker",
+      "description": "Ongoing tracker of active AI pursuits and reusable artifacts.",
+      "requestedBy": "Sandra Liu",
+      "bucket": "Proposal/Delivery Support",
+      "initiative": null,
+      "status": "in_progress",
+      "priority": "low",
+      "isWip": true,
+      "submittedAt": "2026-05-30",
+      "estimatedDueDate": null,
+      "targetStartDate": "2026-05-30",
+      "estimatedHours": 9,
+      "updatedAt": "2026-06-13",
+      "ownerEmail": "priya.raghunathan@example.com",
+      "createdByEmail": "maya.castellanos@example.com",
+      "assignments": [
+        { "userEmail": "priya.raghunathan@example.com", "startDate": "2026-05-30", "endDate": null, "hoursLogged": 9, "notes": "Weekly upkeep, ~1.5 hrs/week.", "touchedAt": "2026-06-13" }
+      ]
+    },
+    {
+      "title": "Audit current utilization data sources",
+      "description": null,
+      "requestedBy": "Marcus Bell",
+      "bucket": "Internal Operations Support",
+      "initiative": "All In for Unify",
+      "status": "complete",
+      "priority": "medium",
+      "isWip": false,
+      "submittedAt": "2026-05-20",
+      "estimatedDueDate": "2026-06-02",
+      "targetStartDate": "2026-05-21",
+      "estimatedHours": 8,
+      "updatedAt": "2026-06-02",
+      "ownerEmail": "maya.castellanos@example.com",
+      "createdByEmail": "maya.castellanos@example.com",
+      "assignments": [
+        { "userEmail": "maya.castellanos@example.com", "startDate": "2026-05-21", "endDate": "2026-06-02", "hoursLogged": 7, "notes": null, "touchedAt": "2026-06-02" }
+      ]
+    },
+    {
+      "title": "Rebuild rollup workbook",
+      "description": "Standardized monthly rollup with practice-level pivots.",
+      "requestedBy": "Marcus Bell",
+      "bucket": "Internal Operations Support",
+      "initiative": "All In for Unify",
+      "status": "in_progress",
+      "priority": "high",
+      "isWip": false,
+      "submittedAt": "2026-06-10",
+      "estimatedDueDate": "2026-06-19",
+      "targetStartDate": "2026-06-11",
+      "estimatedHours": 20,
+      "updatedAt": "2026-06-13",
+      "ownerEmail": "maya.castellanos@example.com",
+      "createdByEmail": "maya.castellanos@example.com",
+      "assignments": [
+        { "userEmail": "maya.castellanos@example.com", "startDate": "2026-06-11", "endDate": null, "hoursLogged": 8, "notes": "Pivot structure done; validation remaining.", "touchedAt": "2026-06-13" },
+        { "userEmail": "jordan.okafor@example.com", "startDate": "2026-06-12", "endDate": null, "hoursLogged": 3, "notes": "Data validation support.", "touchedAt": "2026-06-13" }
+      ]
+    },
+    {
+      "title": "Document the monthly process",
+      "description": null,
+      "requestedBy": "Marcus Bell",
+      "bucket": "Internal Operations Support",
+      "initiative": null,
+      "status": "blocked",
+      "priority": "low",
+      "isWip": false,
+      "submittedAt": "2026-06-04",
+      "estimatedDueDate": "2026-06-26",
+      "targetStartDate": null,
+      "estimatedHours": null,
+      "updatedAt": "2026-06-09",
+      "ownerEmail": "jordan.okafor@example.com",
+      "createdByEmail": "maya.castellanos@example.com",
+      "assignments": [
+        { "userEmail": "jordan.okafor@example.com", "startDate": "2026-06-08", "endDate": null, "hoursLogged": 1, "notes": "Blocked on final workbook structure.", "touchedAt": "2026-06-09" }
+      ]
+    },
+    {
+      "title": "Compile account brief: Meridian Health",
+      "description": null,
+      "requestedBy": "Tara Nguyen",
+      "bucket": "Business Development Support",
+      "initiative": "Account Intelligence & Excellence",
+      "status": "not_started",
+      "priority": "high",
+      "isWip": false,
+      "submittedAt": "2026-06-12",
+      "estimatedDueDate": "2026-06-23",
+      "targetStartDate": "2026-06-17",
+      "estimatedHours": 10,
+      "updatedAt": "2026-06-12",
+      "ownerEmail": "derek.whitfield@example.com",
+      "createdByEmail": "derek.whitfield@example.com",
+      "assignments": []
+    },
+    {
+      "title": "Partner co-marketing deck",
+      "description": "On hold pending alliance direction from the next leadership sync.",
+      "requestedBy": "Tara Nguyen",
+      "bucket": "Business Development Support",
+      "initiative": "Alliance Investment",
+      "status": "paused",
+      "priority": "low",
+      "isWip": false,
+      "submittedAt": "2026-06-06",
+      "estimatedDueDate": null,
+      "targetStartDate": null,
+      "estimatedHours": null,
+      "updatedAt": "2026-06-08",
+      "ownerEmail": "jordan.okafor@example.com",
+      "createdByEmail": "derek.whitfield@example.com",
+      "assignments": [
+        { "userEmail": "jordan.okafor@example.com", "startDate": "2026-06-06", "endDate": null, "hoursLogged": 2, "notes": "Parked until the next leadership sync.", "touchedAt": "2026-06-08" }
+      ]
+    },
+    {
+      "title": "Refresh pricing model",
+      "description": null,
+      "requestedBy": "Marcus Bell",
+      "bucket": "Internal Operations Support",
+      "initiative": null,
+      "status": "not_started",
+      "priority": "medium",
+      "isWip": false,
+      "submittedAt": "2026-06-15",
+      "estimatedDueDate": "2026-06-20",
+      "targetStartDate": null,
+      "estimatedHours": 5,
+      "updatedAt": "2026-06-15",
+      "ownerEmail": null,
+      "createdByEmail": "avery.chen@example.com",
+      "assignments": []
+    }
+  ]
+}
