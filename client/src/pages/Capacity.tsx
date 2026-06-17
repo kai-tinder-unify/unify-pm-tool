@@ -40,9 +40,9 @@ export default function Capacity() {
   const rows = useMemo<Row[]>(() => {
     return users
       .map((u) => {
-        // "On" a task = its owner, or an active contributor (assignment with no end date).
-        const onTasks = active.filter(
-          (t) => t.ownerId === u.id || t.assignments.some((a) => a.userId === u.id && !a.endDate),
+        // "On" a task = an active contributor (assignment with no end date).
+        const onTasks = active.filter((t) =>
+          t.assignments.some((a) => a.userId === u.id && !a.endDate),
         );
         return {
           user: u,
@@ -54,7 +54,7 @@ export default function Capacity() {
   }, [users, active]);
 
   const maxTotal = Math.max(1, ...rows.map((r) => r.total));
-  const unowned = active.filter((t) => !t.ownerId).length;
+  const unstaffed = active.filter((t) => !t.assignments.some((a) => !a.endDate)).length;
   const peopleEngaged = rows.filter((r) => r.total > 0).length;
 
   if (loading) return <Spinner />;
@@ -86,15 +86,15 @@ export default function Capacity() {
           <div className="text-xs text-muted mt-2">People with active work</div>
         </div>
         <div className="card px-5 py-4">
-          {/* Unowned tasks warrant attention when > 0 -> warn (amber) figure; otherwise neutral navy. */}
+          {/* Unstaffed tasks (no active contributor) warrant attention when > 0 -> warn figure. */}
           <div
             className={`display-figure text-[26px] leading-none tabular-nums ${
-              unowned > 0 ? 'text-warn' : 'text-navy'
+              unstaffed > 0 ? 'text-warn' : 'text-navy'
             }`}
           >
-            {unowned}
+            {unstaffed}
           </div>
-          <div className="text-xs text-muted mt-2">Unowned tasks</div>
+          <div className="text-xs text-muted mt-2">Unstaffed tasks</div>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ export default function Capacity() {
       )}
 
       <p className="text-xs text-slate-600">
-        Counts active (non-complete) tasks where a person is the owner or an active contributor. Manage assignments from
+        Counts active (non-complete) tasks where a person is an active contributor. Manage assignments from
         each <Link to="/tasks" className="text-aqua-text hover:text-navy">task</Link>.
       </p>
     </div>

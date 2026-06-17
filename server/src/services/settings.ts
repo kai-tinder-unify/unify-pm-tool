@@ -15,7 +15,7 @@ export const SETTING_KEYS = [
   'smtpFrom',
   'teamsWebhookUrl',
   'teamsPingEnabled',
-  'teamsTaskAssignedEnabled',
+  'teamsTaskJoinedEnabled',
   'briefingDistributionList',
 ] as const;
 
@@ -45,7 +45,7 @@ const DEFAULTS: Record<SettingKey, string> = {
   smtpFrom: process.env.SMTP_FROM || 'Ascend Hub <noreply@unifyconsulting.com>',
   teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
   teamsPingEnabled: 'false',
-  teamsTaskAssignedEnabled: 'false',
+  teamsTaskJoinedEnabled: 'false',
   briefingDistributionList: '',
 };
 

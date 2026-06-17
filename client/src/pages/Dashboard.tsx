@@ -32,7 +32,7 @@ export default function Dashboard() {
   const myTasks = allTasks.filter(
     (t) =>
       t.status !== 'complete' &&
-      (t.ownerId === user?.id || t.assignments.some((a) => a.userId === user?.id && !a.endDate)),
+      t.assignments.some((a) => a.userId === user?.id && !a.endDate),
   );
   const recentActivity = [...allTasks]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())

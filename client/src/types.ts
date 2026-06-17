@@ -44,8 +44,6 @@ export interface Task {
   estimatedHours: number | null;
   bucket: string;
   initiative: string | null; // optional
-  ownerId: string | null;
-  owner: UserRef | null;
   createdById: string;
   createdBy: UserRef;
   assignments: Assignment[];
@@ -79,6 +77,6 @@ export interface Settings {
   smtpPassSet?: boolean;
   teamsWebhookUrl?: string;
   teamsPingEnabled?: string;
-  teamsTaskAssignedEnabled?: string;
+  teamsTaskJoinedEnabled?: string;
   briefingDistributionList?: string;
 }

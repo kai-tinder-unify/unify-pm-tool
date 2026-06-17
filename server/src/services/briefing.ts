@@ -54,7 +54,6 @@ export async function generateBriefing() {
 
   const upcoming = await prisma.task.findMany({
     where: { status: { in: ['not_started', 'in_progress', 'blocked', 'paused'] } },
-    include: { owner: true },
     orderBy: [{ priority: 'asc' }, { estimatedDueDate: 'asc' }],
     take: 8,
   });
@@ -87,7 +86,7 @@ export async function generateBriefing() {
   } else {
     for (const t of upcoming) {
       lines.push(
-        `- ${t.title} — owner: ${t.owner?.name ?? 'unassigned'}, ${t.isWip ? 'WIP' : t.estimatedDueDate ? `due: ${fmtDay(t.estimatedDueDate)}` : 'no date'}, priority: ${t.priority}`,
+        `- ${t.title} — for ${t.requestedBy}, ${t.isWip ? 'WIP' : t.estimatedDueDate ? `due: ${fmtDay(t.estimatedDueDate)}` : 'no date'}, priority: ${t.priority}`,
       );
     }
   }
