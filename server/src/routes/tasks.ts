@@ -211,11 +211,28 @@ router.post(
   asyncHandler(async (req, res) => {
     const task = await prisma.task.findUnique({
       where: { id: req.params.id },
-      include: { owner: { select: { name: true, email: true } } },
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        assignments: { include: { user: { select: { id: true, name: true, email: true } } } },
+      },
     });
     if (!task) throw httpError(404, 'Task not found');
-    if (!task.owner) {
-      throw httpError(400, 'This task has no owner to ping. Assign an owner first.');
+
+    // One message pings the owner and every contributor; dedupe so anyone who is
+    // both owner and a contributor is only mentioned once. Owner leads the list.
+    const recipients: { name: string; email: string | null }[] = [];
+    const seen = new Set<string>();
+    if (task.owner) {
+      recipients.push({ name: task.owner.name, email: task.owner.email });
+      seen.add(task.owner.id);
+    }
+    for (const a of task.assignments) {
+      if (seen.has(a.user.id)) continue;
+      seen.add(a.user.id);
+      recipients.push({ name: a.user.name, email: a.user.email });
+    }
+    if (recipients.length === 0) {
+      throw httpError(400, 'This task has no owner or contributors to ping.');
     }
 
     // Bypasses the daily-ping toggle and the 20h check-in guard by design — this is
@@ -230,12 +247,14 @@ router.post(
         priority: task.priority,
         requestedBy: task.requestedBy,
       },
-      owner: task.owner.name,
-      ownerEmail: task.owner.email,
+      recipients,
       pingedBy: req.user!.name,
     });
 
-    res.json({ ok: true, message: `Ping sent to ${task.owner.name}` });
+    res.json({
+      ok: true,
+      message: `Ping sent to ${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}`,
+    });
   }),
 );
 

@@ -51,7 +51,7 @@ export default function TaskDetail() {
     }
   };
 
-  // Admin-only manual nudge to the task owner in Teams — no cooldown.
+  // Admin-only manual nudge to the task owner and all contributors in Teams — no cooldown.
   const sendPing = async () => {
     setPinging(true);
     try {
@@ -132,8 +132,12 @@ export default function TaskDetail() {
               <button
                 className="btn-secondary"
                 onClick={sendPing}
-                disabled={pinging || !task.owner}
-                title={task.owner ? `Ping ${task.owner.name} in Teams` : 'Assign an owner to enable pinging'}
+                disabled={pinging || (!task.owner && task.assignments.length === 0)}
+                title={
+                  task.owner || task.assignments.length > 0
+                    ? 'Ping the owner and all contributors in Teams'
+                    : 'Add an owner or contributor to enable pinging'
+                }
               >
                 {pinging ? 'Pinging…' : 'Send ping'}
               </button>

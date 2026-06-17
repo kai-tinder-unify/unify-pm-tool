@@ -36,8 +36,7 @@ export type TeamsEvent =
   | {
       type: 'task_ping';
       task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
-      owner: string;
-      ownerEmail: string | null;
+      recipients: { name: string; email: string | null }[];
       pingedBy: string;
     };
 
@@ -80,7 +79,7 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
         facts([
           ['Requested by', e.task.requestedBy],
           ['Bucket', e.task.bucket],
-          ['Priority', e.task.priority],
+          ['Priority', titleCase(e.task.priority)],
         ]),
       ],
       [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
@@ -90,15 +89,15 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
 
   task_ping: (e) => {
     const entities: Mention[] = [];
-    const who = mentionOrName(e.owner, e.ownerEmail, entities);
+    const mentions = e.recipients.map((r) => mentionOrName(r.name, r.email, entities)).join(' ');
     return card(
       [
         heading(`🔔 Ping — ${e.task.title}`),
-        textBlock(`${who}, ${e.pingedBy} is nudging you on this task.`, { wrap: true }),
+        textBlock(`${mentions} — ${e.pingedBy} is nudging you on this task.`, { wrap: true }),
         facts([
           ['Requested by', e.task.requestedBy],
           ['Bucket', e.task.bucket],
-          ['Priority', e.task.priority],
+          ['Priority', titleCase(e.task.priority)],
         ]),
       ],
       [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
@@ -178,6 +177,11 @@ function textBlock(text: string, opts: Record<string, unknown> = {}) {
 
 function facts(pairs: [string, string][]) {
   return { type: 'FactSet', facts: pairs.map(([title, value]) => ({ title, value })) };
+}
+
+/** 'medium' -> 'Medium' — enum values (e.g. priority) render lowercase otherwise. */
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function openButton(title: string, url: string) {
