@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { useFetch, useLabels, useUsers } from '../hooks';
+import { useFetch, useLabels } from '../hooks';
 import { useToast } from '../context/ToastContext';
 import { StatusBadge } from '../components/ui';
 import type { Task } from '../types';
@@ -41,7 +41,6 @@ export default function NewTask() {
   const navigate = useNavigate();
   const toast = useToast();
   const { buckets, initiatives } = useLabels();
-  const { users } = useUsers();
   const tasks = useFetch<Task[]>('/api/tasks');
 
   // Distinct leaders from existing tasks — pick from the list to avoid misspellings.
@@ -58,7 +57,6 @@ export default function NewTask() {
   const [bucket, setBucket] = useState('');
   const [initiative, setInitiative] = useState('');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [ownerId, setOwnerId] = useState('');
   const [dueMode, setDueMode] = useState<DueMode>('unset');
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -99,7 +97,6 @@ export default function NewTask() {
           bucket,
           initiative: initiative || null,
           priority,
-          ownerId: ownerId || null,
           isWip: dueMode === 'wip',
           estimatedDueDate: dueMode === 'date' && dueDate ? dueDate : null,
         },
@@ -256,17 +253,6 @@ export default function NewTask() {
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Owner</label>
-            <select className="input" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
             </select>
           </div>
         </div>

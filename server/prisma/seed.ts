@@ -60,7 +60,6 @@ type SeedTask = {
   targetStartDate: string | null;
   estimatedHours: number | null;
   updatedAt: string; // real completion / last-activity date -> backdated task.updatedAt
-  ownerEmail: string | null;
   createdByEmail: string;
   assignments: SeedAssignment[];
 };
@@ -141,7 +140,6 @@ async function main() {
   const assignmentStamps: { id: string; at: Date }[] = [];
 
   for (const t of data.tasks) {
-    const ownerId = t.ownerEmail ? emailToId.get(t.ownerEmail) ?? null : null;
     const createdById = emailToId.get(t.createdByEmail)!;
 
     const task = await prisma.task.create({
@@ -158,7 +156,6 @@ async function main() {
         estimatedHours: t.estimatedHours,
         bucket: t.bucket,
         initiative: t.initiative,
-        ownerId,
         createdById,
         // createdAt drives "WIP age" — anchor it to intake, not seed time.
         createdAt: calDay(t.submittedAt)!,

@@ -36,7 +36,6 @@ model User {
   pingTime     String? // "HH:mm" 24h, user's preferred daily ping time; null = team default
   createdAt    DateTime @default(now())
 
-  ownedTasks      Task[]           @relation("TaskOwner")
   createdTasks    Task[]           @relation("TaskCreator")
   assignments     TaskAssignment[]
   checkIns        CheckIn[]
@@ -56,8 +55,6 @@ model Task {
   estimatedHours   Float?
   bucket           String
   initiative       String? // optional
-  ownerId          String?
-  owner            User?      @relation("TaskOwner", fields: [ownerId], references: [id])
   createdById      String
   createdBy        User       @relation("TaskCreator", fields: [createdById], references: [id])
   createdAt        DateTime   @default(now())
@@ -68,7 +65,6 @@ model Task {
 
   @@index([status])
   @@index([bucket])
-  @@index([ownerId])
 }
 
 model TaskAssignment {

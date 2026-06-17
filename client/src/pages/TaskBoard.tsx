@@ -74,7 +74,7 @@ function initials(name: string): string {
     .join('');
 }
 
-function OwnerTag({ name }: { name: string }) {
+function ContributorTag({ name }: { name: string }) {
   return (
     <span className="flex items-center gap-1.5 min-w-0">
       {/* Avatar chip: aqua tint fill with navy initials reads well on a white card. */}
@@ -149,7 +149,7 @@ export default function TaskBoard() {
   const f = {
     bucket: params.get('bucket') || '',
     initiative: params.get('initiative') || '',
-    owner: params.get('owner') || '',
+    person: params.get('person') || '',
     priority: params.get('priority') || '',
     status: params.get('status') || '',
     from: params.get('from') || '',
@@ -164,13 +164,13 @@ export default function TaskBoard() {
       if (f.bucket && t.bucket !== f.bucket) return false;
       if (f.initiative && t.initiative !== f.initiative) return false;
       if (f.status && t.status !== f.status) return false;
-      if (f.owner && t.ownerId !== f.owner && !t.assignments.some((a) => a.userId === f.owner)) return false;
+      if (f.person && !t.assignments.some((a) => a.userId === f.person)) return false;
       if (f.priority && t.priority !== f.priority) return false;
       if (f.from && new Date(t.submittedAt) < new Date(f.from)) return false;
       if (f.to && new Date(t.submittedAt) > new Date(f.to + 'T23:59:59')) return false;
       return true;
     });
-  }, [tasks, f.bucket, f.initiative, f.status, f.owner, f.priority, f.from, f.to]);
+  }, [tasks, f.bucket, f.initiative, f.status, f.person, f.priority, f.from, f.to]);
 
   const active = useMemo(() => filtered.filter((t) => t.status !== 'complete'), [filtered]);
 
@@ -187,7 +187,7 @@ export default function TaskBoard() {
     dueSoon: active.filter(isDueSoon).length,
     blocked: active.filter((t) => t.status === 'blocked').length,
     paused: active.filter((t) => t.status === 'paused').length,
-    unowned: active.filter((t) => !t.ownerId).length,
+    unstaffed: active.filter((t) => !t.assignments.some((a) => !a.endDate)).length,
   };
 
   const sortCards = (a: Task, b: Task) => {
@@ -199,7 +199,7 @@ export default function TaskBoard() {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   };
 
-  const upForGrabs = active.filter((t) => !t.ownerId).sort(sortCards);
+  const upForGrabs = active.filter((t) => !t.assignments.some((a) => !a.endDate)).sort(sortCards);
 
   const completed = useMemo(() => {
     const since = lastMeetingStart().getTime();
@@ -212,8 +212,11 @@ export default function TaskBoard() {
     if (!user) return;
     setClaiming(task.id);
     try {
-      await api(`/api/tasks/${task.id}`, { method: 'PUT', body: { ownerId: user.id } });
-      toast.success(`You claimed “${task.title}”`);
+      await api(`/api/tasks/${task.id}/assignments`, {
+        method: 'POST',
+        body: { startDate: new Date().toISOString().slice(0, 10), hoursLogged: 0 },
+      });
+      toast.success(`You joined “${task.title}”`);
       reload();
     } catch (e: any) {
       toast.error(e.message);
@@ -296,7 +299,7 @@ export default function TaskBoard() {
           <CountPill label="due ≤3d" value={counts.dueSoon} tone="amber" />
           <CountPill label="blocked" value={counts.blocked} tone="red" />
           <CountPill label="paused" value={counts.paused} tone="violet" />
-          <CountPill label="unowned" value={counts.unowned} tone="amber" />
+          <CountPill label="unstaffed" value={counts.unstaffed} tone="amber" />
         </div>
         <div className="flex items-center gap-2">
           {/* Live indicator → success trio; the pulsing dot keeps its bright green for the "live" cue. */}
@@ -338,7 +341,7 @@ export default function TaskBoard() {
               </option>
             ))}
           </select>
-          <select className="input !w-auto" value={f.owner} onChange={(e) => setFilter('owner', e.target.value)}>
+          <select className="input !w-auto" value={f.person} onChange={(e) => setFilter('person', e.target.value)}>
             <option value="">All people</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
@@ -388,7 +391,7 @@ export default function TaskBoard() {
           <h2 className="micro-title mb-2 flex items-center gap-2">
             Up for grabs
             <span className="font-normal normal-case tracking-normal text-muted text-[11px]">
-              entered without an owner — anyone can claim
+              no contributors yet — claim to join
             </span>
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -415,7 +418,7 @@ export default function TaskBoard() {
                   onClick={() => claim(t)}
                   disabled={claiming === t.id}
                 >
-                  {claiming === t.id ? 'Claiming…' : 'Claim'}
+                  {claiming === t.id ? 'Joining…' : 'Claim'}
                 </button>
               </div>
             ))}
@@ -582,7 +585,7 @@ export default function TaskBoard() {
               <ul className="divide-y divide-line">
                 {completed.map((t) => {
                   const contributors = [...new Set(t.assignments.map((a) => a.user.name))];
-                  const who = contributors.length > 0 ? contributors.join(', ') : t.owner?.name ?? '—';
+                  const who = contributors.length > 0 ? contributors.join(', ') : '—';
                   return (
                     <li key={t.id} className="list-row py-2.5 flex items-center justify-between gap-3 text-sm">
                       <span className="min-w-0">
@@ -642,6 +645,7 @@ function BoardCard({
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: (e: React.DragEvent) => void;
 }) {
+  const activeContribs = task.assignments.filter((a) => !a.endDate);
   return (
     <div
       draggable
@@ -659,17 +663,22 @@ function BoardCard({
         {task.title}
       </Link>
       <div className="flex items-center justify-between gap-2 mt-2.5">
-        {task.owner ? (
-          <OwnerTag name={task.owner.name} />
+        {activeContribs.length > 0 ? (
+          <span className="flex items-center gap-1.5 min-w-0">
+            <ContributorTag name={activeContribs[0].user.name} />
+            {activeContribs.length > 1 && (
+              <span className="text-[11px] text-muted shrink-0">+{activeContribs.length - 1}</span>
+            )}
+          </span>
         ) : (
           <button
             // Inline "Claim" affordance: warn (amber) dashed outline that fills with the
-            // warn tint on hover — the light-brand equivalent of the old amber-300 chip.
+            // warn tint on hover — claiming adds you to the task as a contributor.
             className="text-[12px] font-medium text-warn px-2 py-0.5 rounded-md border border-dashed border-warn-border transition-colors hover:bg-warn-bg disabled:opacity-50"
             onClick={() => onClaim(task)}
             disabled={claiming}
           >
-            {claiming ? 'Claiming…' : 'Claim'}
+            {claiming ? 'Joining…' : 'Claim'}
           </button>
         )}
         <DueChip task={task} />

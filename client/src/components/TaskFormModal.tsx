@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useToast } from '../context/ToastContext';
-import { useLabels, useUsers } from '../hooks';
+import { useLabels } from '../hooks';
 import { Modal, toInputDate } from './ui';
 import type { Task } from '../types';
 
@@ -19,7 +19,6 @@ export default function TaskFormModal({
 }) {
   const toast = useToast();
   const { buckets, initiatives } = useLabels();
-  const { users } = useUsers();
 
   const [title, setTitle] = useState(existing.title);
   const [description, setDescription] = useState(existing.description || '');
@@ -27,7 +26,6 @@ export default function TaskFormModal({
   const [submittedAt, setSubmittedAt] = useState(toInputDate(existing.submittedAt));
   const [priority, setPriority] = useState(existing.priority);
   const [status, setStatus] = useState(existing.status);
-  const [ownerId, setOwnerId] = useState(existing.ownerId || '');
   const [targetStartDate, setTargetStartDate] = useState(toInputDate(existing.targetStartDate));
   const [dueMode, setDueMode] = useState<DueMode>(
     existing.isWip ? 'wip' : existing.estimatedDueDate ? 'date' : 'unset',
@@ -57,7 +55,6 @@ export default function TaskFormModal({
           submittedAt: submittedAt || existing.submittedAt,
           priority,
           status,
-          ownerId: ownerId || null,
           targetStartDate: targetStartDate || null,
           isWip: dueMode === 'wip',
           estimatedDueDate: dueMode === 'date' && dueDate ? dueDate : null,
@@ -113,17 +110,6 @@ export default function TaskFormModal({
               <option value="paused">Paused</option>
               <option value="blocked">Blocked</option>
               <option value="complete">Complete</option>
-            </select>
-          </div>
-          <div>
-            <label className="label">Owner</label>
-            <select className="input" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
             </select>
           </div>
           <div>

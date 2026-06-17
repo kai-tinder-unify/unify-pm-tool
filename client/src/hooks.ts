@@ -42,7 +42,7 @@ export function useLabels() {
   return { buckets: parse(data?.buckets), initiatives: parse(data?.initiatives) };
 }
 
-/** Active users for assignment/owner dropdowns. */
+/** Active users for assignment dropdowns. */
 export function useUsers(includeInactive = false) {
   const { data, reload } = useFetch<User[]>('/api/users');
   const users = (data || []).filter((u) => includeInactive || u.isActive);

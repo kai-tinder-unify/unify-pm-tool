@@ -28,16 +28,14 @@ export type TeamsEvent =
       }[];
     }
   | {
-      type: 'task_assigned';
+      type: 'task_joined';
       task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
-      assignee: string;
-      assigneeEmail: string | null;
+      member: string;
     }
   | {
       type: 'task_ping';
       task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
-      owner: string;
-      ownerEmail: string | null;
+      recipients: { name: string; email: string | null }[];
       pingedBy: string;
     };
 
@@ -46,7 +44,7 @@ type EventType = TeamsEvent['type'];
 /** Setting that must be 'true' for each event to post; null = always (manual actions). */
 const ENABLED_BY: Record<EventType, SettingKey | null> = {
   daily_checkin: 'teamsPingEnabled',
-  task_assigned: 'teamsTaskAssignedEnabled',
+  task_joined: 'teamsTaskJoinedEnabled',
   task_ping: null,
 };
 
@@ -70,35 +68,31 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
     return card(body, [openButton('Open My Work', `${APP_URL}/my-work`)], entities);
   },
 
-  task_assigned: (e) => {
-    const entities: Mention[] = [];
-    const who = mentionOrName(e.assignee, e.assigneeEmail, entities);
-    return card(
+  task_joined: (e) =>
+    card(
       [
-        heading('📌 Task assigned'),
-        textBlock(`${who} is now the owner of **${e.task.title}**.`, { wrap: true }),
+        heading('👤 Joined a task'),
+        textBlock(`**${e.member}** is now contributing to **${e.task.title}**.`, { wrap: true }),
         facts([
           ['Requested by', e.task.requestedBy],
           ['Bucket', e.task.bucket],
-          ['Priority', e.task.priority],
+          ['Priority', titleCase(e.task.priority)],
         ]),
       ],
       [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
-      entities,
-    );
-  },
+    ),
 
   task_ping: (e) => {
     const entities: Mention[] = [];
-    const who = mentionOrName(e.owner, e.ownerEmail, entities);
+    const mentions = e.recipients.map((r) => mentionOrName(r.name, r.email, entities)).join(' ');
     return card(
       [
         heading(`🔔 Ping — ${e.task.title}`),
-        textBlock(`${who}, ${e.pingedBy} is nudging you on this task.`, { wrap: true }),
+        textBlock(`${mentions} — ${e.pingedBy} is nudging you on this task.`, { wrap: true }),
         facts([
           ['Requested by', e.task.requestedBy],
           ['Bucket', e.task.bucket],
-          ['Priority', e.task.priority],
+          ['Priority', titleCase(e.task.priority)],
         ]),
       ],
       [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
@@ -178,6 +172,11 @@ function textBlock(text: string, opts: Record<string, unknown> = {}) {
 
 function facts(pairs: [string, string][]) {
   return { type: 'FactSet', facts: pairs.map(([title, value]) => ({ title, value })) };
+}
+
+/** 'medium' -> 'Medium' — enum values (e.g. priority) render lowercase otherwise. */
+function titleCase(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function openButton(title: string, url: string) {

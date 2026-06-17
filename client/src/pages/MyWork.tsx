@@ -21,8 +21,8 @@ export default function MyWork() {
 
   const allTasks: Task[] = data || [];
 
-  const mine = allTasks.filter(
-    (t) => t.ownerId === user?.id || t.assignments.some((a) => a.userId === user?.id && !a.endDate),
+  const mine = allTasks.filter((t) =>
+    t.assignments.some((a) => a.userId === user?.id && !a.endDate),
   );
   const open = mine.filter((t) => t.status !== 'complete');
   const wip = open.filter((t) => t.isWip);

@@ -6,23 +6,17 @@ import { notifyTeams, sendTeamsEvent } from '../services/notifications';
 const router = Router();
 
 const taskInclude = {
-  owner: { select: { id: true, name: true, email: true } },
   createdBy: { select: { id: true, name: true } },
   assignments: { include: { user: { select: { id: true, name: true } } } },
 } as const;
 
-/** Fires a Teams "task assigned" notification when the task has an owner. */
-function fireTaskAssigned(task: {
-  id: string;
-  title: string;
-  bucket: string;
-  priority: string;
-  requestedBy: string;
-  owner: { name: string; email: string } | null;
-}) {
-  if (!task.owner) return;
+/** Fires a Teams "joined a task" notification when someone is newly added as a contributor. */
+function fireTaskJoined(
+  task: { id: string; title: string; bucket: string; priority: string; requestedBy: string },
+  member: string,
+) {
   void notifyTeams({
-    type: 'task_assigned',
+    type: 'task_joined',
     task: {
       id: task.id,
       title: task.title,
@@ -30,8 +24,7 @@ function fireTaskAssigned(task: {
       priority: task.priority,
       requestedBy: task.requestedBy,
     },
-    assignee: task.owner.name,
-    assigneeEmail: task.owner.email,
+    member,
   });
 }
 
@@ -58,7 +51,7 @@ router.post(
     const {
       title, description, requestedBy, submittedAt, status, priority, isWip,
       estimatedDueDate, targetStartDate, estimatedHours,
-      bucket, initiative, ownerId,
+      bucket, initiative,
     } = req.body || {};
     if (!title || !requestedBy || !bucket) {
       throw httpError(400, 'Title, requested by, and bucket are required');
@@ -79,12 +72,10 @@ router.post(
         estimatedHours: estimatedHours != null && estimatedHours !== '' ? Number(estimatedHours) : null,
         bucket: String(bucket),
         initiative: initiative ? String(initiative) : null,
-        ownerId: ownerId || null,
         createdById: req.user!.id,
       },
       include: taskInclude,
     });
-    fireTaskAssigned(task);
     res.status(201).json(task);
   }),
 );
@@ -104,7 +95,7 @@ router.put(
     const {
       title, description, requestedBy, submittedAt, status, priority, isWip,
       estimatedDueDate, targetStartDate, estimatedHours,
-      bucket, initiative, ownerId,
+      bucket, initiative,
     } = req.body || {};
 
     const data: any = {};
@@ -129,21 +120,8 @@ router.put(
     }
     if (bucket !== undefined) data.bucket = String(bucket);
     if (initiative !== undefined) data.initiative = initiative ? String(initiative) : null;
-    if (ownerId !== undefined) data.ownerId = ownerId || null;
-
-    // When the owner is being changed, capture the prior owner so we only notify
-    // on a genuine (re)assignment to a non-null owner.
-    let prevOwnerId: string | null = null;
-    if (ownerId !== undefined) {
-      const before = await prisma.task.findUnique({
-        where: { id: req.params.id },
-        select: { ownerId: true },
-      });
-      prevOwnerId = before?.ownerId ?? null;
-    }
 
     const task = await prisma.task.update({ where: { id: req.params.id }, data, include: taskInclude });
-    if (ownerId !== undefined && task.ownerId !== prevOwnerId) fireTaskAssigned(task);
     res.json(task);
   }),
 );
@@ -182,6 +160,13 @@ router.post(
     const hours = hoursLogged != null && hoursLogged !== '' ? Number(hoursLogged) : 0;
     if (Number.isNaN(hours) || hours < 0) throw httpError(400, 'Hours must be a non-negative number');
 
+    // Detect a first-time join (vs. updating an existing assignment) so the "joined a
+    // task" Teams card posts only once, not on every hours update.
+    const existing = await prisma.taskAssignment.findUnique({
+      where: { taskId_userId: { taskId: task.id, userId: req.user!.id } },
+      select: { id: true },
+    });
+
     const assignment = await prisma.taskAssignment.upsert({
       where: { taskId_userId: { taskId: task.id, userId: req.user!.id } },
       update: {
@@ -200,22 +185,27 @@ router.post(
       },
       include: { user: { select: { id: true, name: true } } },
     });
+
+    if (!existing) fireTaskJoined(task, req.user!.name);
     res.status(201).json(assignment);
   }),
 );
 
-/** Manual admin ping — notifies the task owner in Teams immediately, no cooldown. */
+/** Manual admin ping — notifies every contributor in Teams immediately, no cooldown. */
 router.post(
   '/:id/ping',
   requireAdmin,
   asyncHandler(async (req, res) => {
     const task = await prisma.task.findUnique({
       where: { id: req.params.id },
-      include: { owner: { select: { name: true, email: true } } },
+      include: { assignments: { include: { user: { select: { name: true, email: true } } } } },
     });
     if (!task) throw httpError(404, 'Task not found');
-    if (!task.owner) {
-      throw httpError(400, 'This task has no owner to ping. Assign an owner first.');
+
+    // Contributors are unique per task (TaskAssignment @@unique[taskId,userId]).
+    const recipients = task.assignments.map((a) => ({ name: a.user.name, email: a.user.email }));
+    if (recipients.length === 0) {
+      throw httpError(400, 'This task has no contributors to ping. Add a contributor first.');
     }
 
     // Bypasses the daily-ping toggle and the 20h check-in guard by design — this is
@@ -230,12 +220,14 @@ router.post(
         priority: task.priority,
         requestedBy: task.requestedBy,
       },
-      owner: task.owner.name,
-      ownerEmail: task.owner.email,
+      recipients,
       pingedBy: req.user!.name,
     });
 
-    res.json({ ok: true, message: `Ping sent to ${task.owner.name}` });
+    res.json({
+      ok: true,
+      message: `Ping sent to ${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}`,
+    });
   }),
 );
 

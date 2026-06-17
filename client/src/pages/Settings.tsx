@@ -33,7 +33,7 @@ export default function Settings() {
       smtpFrom: data.smtpFrom || '',
       teamsWebhookUrl: data.teamsWebhookUrl || '',
       teamsPingEnabled: data.teamsPingEnabled || 'false',
-      teamsTaskAssignedEnabled: data.teamsTaskAssignedEnabled || 'false',
+      teamsTaskJoinedEnabled: data.teamsTaskJoinedEnabled || 'false',
       briefingDistributionList: data.briefingDistributionList || '',
     });
     try {
@@ -250,10 +250,10 @@ export default function Settings() {
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
-              checked={form.teamsTaskAssignedEnabled === 'true'}
-              onChange={(e) => set('teamsTaskAssignedEnabled', e.target.checked ? 'true' : 'false')}
+              checked={form.teamsTaskJoinedEnabled === 'true'}
+              onChange={(e) => set('teamsTaskJoinedEnabled', e.target.checked ? 'true' : 'false')}
             />
-            Post a card when a task is assigned to an owner
+            Post a card when someone joins a task
           </label>
         </div>
       </section>

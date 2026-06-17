@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api';
-import { useFetch, useLabels, useUsers } from '../hooks';
+import { useFetch, useLabels } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, fmtDay, Modal } from '../components/ui';
@@ -15,7 +15,6 @@ export default function TaskDetail() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const { buckets, initiatives } = useLabels();
-  const { users } = useUsers();
   const { data: task, loading, error, reload } = useFetch<Task>(`/api/tasks/${id}`);
   const allTasks = useFetch<Task[]>('/api/tasks');
 
@@ -51,7 +50,7 @@ export default function TaskDetail() {
     }
   };
 
-  // Admin-only manual nudge to the task owner in Teams — no cooldown.
+  // Admin-only manual nudge to all contributors in Teams — no cooldown.
   const sendPing = async () => {
     setPinging(true);
     try {
@@ -132,8 +131,12 @@ export default function TaskDetail() {
               <button
                 className="btn-secondary"
                 onClick={sendPing}
-                disabled={pinging || !task.owner}
-                title={task.owner ? `Ping ${task.owner.name} in Teams` : 'Assign an owner to enable pinging'}
+                disabled={pinging || task.assignments.length === 0}
+                title={
+                  task.assignments.length > 0
+                    ? 'Ping all contributors in Teams'
+                    : 'Add a contributor to enable pinging'
+                }
               >
                 {pinging ? 'Pinging…' : 'Send ping'}
               </button>
@@ -168,17 +171,6 @@ export default function TaskDetail() {
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Owner</label>
-          <select className="input" value={task.ownerId || ''} onChange={(e) => updateTask({ ownerId: e.target.value || null })}>
-            <option value="">Unassigned</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
           </select>
         </div>
         <div>
