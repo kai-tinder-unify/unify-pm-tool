@@ -56,6 +56,7 @@ export default function NewTask() {
   const [submittedAt, setSubmittedAt] = useState(new Date().toISOString().slice(0, 10));
   const [bucket, setBucket] = useState('');
   const [initiative, setInitiative] = useState('');
+  const [salesforceOpportunity, setSalesforceOpportunity] = useState('');
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [dueMode, setDueMode] = useState<DueMode>('unset');
   const [dueDate, setDueDate] = useState('');
@@ -96,6 +97,7 @@ export default function NewTask() {
           submittedAt,
           bucket,
           initiative: initiative || null,
+          salesforceOpportunity: salesforceOpportunity || null,
           priority,
           isWip: dueMode === 'wip',
           estimatedDueDate: dueMode === 'date' && dueDate ? dueDate : null,
@@ -245,6 +247,22 @@ export default function NewTask() {
               ))}
             </select>
           </div>
+        </div>
+        {/* Salesforce opportunity — optional, primarily for proposals. Captured so the
+            (external) influenced-revenue dashboard can match this work to a dollar
+            amount by opportunity rather than by fuzzy title/leader matching. */}
+        <div>
+          <label className="label">Salesforce opportunity</label>
+          <input
+            className="input"
+            value={salesforceOpportunity}
+            onChange={(e) => setSalesforceOpportunity(e.target.value)}
+            placeholder="Opportunity link or ID — e.g. https://…/Opportunity/006… or 006…"
+          />
+          <p className="text-xs text-muted mt-1">
+            Optional. Mainly for proposals — used to match them to influenced revenue. Ask an
+            Ascender with Salesforce access if you don't have it.
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

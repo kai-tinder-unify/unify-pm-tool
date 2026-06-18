@@ -55,6 +55,12 @@ model Task {
   estimatedHours   Float?
   bucket           String
   initiative       String? // optional
+  // Salesforce opportunity link or 15/18-char ID. Optional and primarily for
+  // proposals: lets the (external) influenced-revenue dashboard join a proposal
+  // to its dollar amount by opportunity instead of fuzzy title/leader matching.
+  // The person entering a task often lacks Salesforce access, so it's nullable
+  // and filled in later by whoever does (an Ascender w/ access or solution/delivery).
+  salesforceOpportunity String?
   createdById      String
   createdBy        User       @relation("TaskCreator", fields: [createdById], references: [id])
   createdAt        DateTime   @default(now())

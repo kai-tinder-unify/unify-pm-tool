@@ -14,6 +14,8 @@ import {
   Avatars,
   fmtDate,
   fmtDay,
+  NeedsSfBadge,
+  isProposalBucket,
 } from '../components/ui';
 import type { Task, TaskStatus } from '../types';
 
@@ -188,6 +190,9 @@ export default function TaskBoard() {
     blocked: active.filter((t) => t.status === 'blocked').length,
     paused: active.filter((t) => t.status === 'paused').length,
     unstaffed: active.filter((t) => !t.assignments.some((a) => !a.endDate)).length,
+    // Proposals still missing their Salesforce opportunity link — the gap this
+    // feature exists to surface and close.
+    missingSf: active.filter((t) => isProposalBucket(t.bucket) && !t.salesforceOpportunity).length,
   };
 
   const sortCards = (a: Task, b: Task) => {
@@ -300,6 +305,7 @@ export default function TaskBoard() {
           <CountPill label="blocked" value={counts.blocked} tone="red" />
           <CountPill label="paused" value={counts.paused} tone="violet" />
           <CountPill label="unstaffed" value={counts.unstaffed} tone="amber" />
+          <CountPill label="missing SF link" value={counts.missingSf} tone="amber" />
         </div>
         <div className="flex items-center gap-2">
           {/* Live indicator → success trio; the pulsing dot keeps its bright green for the "live" cue. */}
@@ -523,6 +529,11 @@ export default function TaskBoard() {
                       {t.initiative && (
                         <div className="text-xs text-muted truncate max-w-md mt-0.5">{t.initiative}</div>
                       )}
+                      {isProposalBucket(t.bucket) && !t.salesforceOpportunity && (
+                        <div className="mt-1">
+                          <NeedsSfBadge compact />
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted">{t.requestedBy}</td>
                     <td className="px-4 py-3 text-muted text-xs">{t.bucket}</td>
@@ -683,6 +694,13 @@ function BoardCard({
         )}
         <DueChip task={task} />
       </div>
+      {/* Passive nudge: a proposal with no Salesforce opportunity yet. Compact label
+          to fit the card; whoever has SF access can open the task and add it. */}
+      {isProposalBucket(task.bucket) && !task.salesforceOpportunity && (
+        <div className="mt-2">
+          <NeedsSfBadge compact />
+        </div>
+      )}
     </div>
   );
 }

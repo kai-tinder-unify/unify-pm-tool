@@ -45,6 +45,15 @@ const icons: Record<string, ReactNode> = {
       <path d="M2.5 13.5v-4M6.5 13.5v-7M10.5 13.5v-5M14 13.5V3" strokeLinecap="round" />
     </svg>
   ),
+  // Proposals view: a clipboard/document, distinct from the board (columns) and
+  // analytics (bars) glyphs.
+  proposals: (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="3" y="2.5" width="10" height="12" rx="1.4" />
+      <path d="M6 1.5h4v2H6z" strokeLinejoin="round" />
+      <path d="M5.5 7h5M5.5 9.5h5M5.5 12h3" strokeLinecap="round" />
+    </svg>
+  ),
   capacity: (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
       <circle cx="5.5" cy="5" r="2.5" />
@@ -90,6 +99,7 @@ const sections: {
     items: [
       { to: '/capacity', label: 'Capacity', icon: 'capacity', adminOnly: true },
       { to: '/analytics', label: 'Analytics', icon: 'analytics' },
+      { to: '/proposals', label: 'Proposals', icon: 'proposals', adminOnly: true },
       { to: '/briefings', label: 'Briefings', icon: 'briefings' },
     ],
   },
