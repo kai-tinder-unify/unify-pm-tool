@@ -51,7 +51,7 @@ router.post(
     const {
       title, description, requestedBy, submittedAt, status, priority, isWip,
       estimatedDueDate, targetStartDate, estimatedHours,
-      bucket, initiative,
+      bucket, initiative, salesforceOpportunity,
     } = req.body || {};
     if (!title || !requestedBy || !bucket) {
       throw httpError(400, 'Title, requested by, and bucket are required');
@@ -72,6 +72,9 @@ router.post(
         estimatedHours: estimatedHours != null && estimatedHours !== '' ? Number(estimatedHours) : null,
         bucket: String(bucket),
         initiative: initiative ? String(initiative) : null,
+        // Salesforce opportunity link/ID (optional) — trim so a pasted value with
+        // stray whitespace still matches cleanly; an empty string stores as null.
+        salesforceOpportunity: salesforceOpportunity ? String(salesforceOpportunity).trim() : null,
         createdById: req.user!.id,
       },
       include: taskInclude,
@@ -95,7 +98,7 @@ router.put(
     const {
       title, description, requestedBy, submittedAt, status, priority, isWip,
       estimatedDueDate, targetStartDate, estimatedHours,
-      bucket, initiative,
+      bucket, initiative, salesforceOpportunity,
     } = req.body || {};
 
     const data: any = {};
@@ -120,6 +123,11 @@ router.put(
     }
     if (bucket !== undefined) data.bucket = String(bucket);
     if (initiative !== undefined) data.initiative = initiative ? String(initiative) : null;
+    // Only touch the SF opportunity when the client actually sends the key; an
+    // empty string clears it back to null (e.g. an erroneous link removed).
+    if (salesforceOpportunity !== undefined) {
+      data.salesforceOpportunity = salesforceOpportunity ? String(salesforceOpportunity).trim() : null;
+    }
 
     const task = await prisma.task.update({ where: { id: req.params.id }, data, include: taskInclude });
     res.json(task);

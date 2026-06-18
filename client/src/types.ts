@@ -44,6 +44,9 @@ export interface Task {
   estimatedHours: number | null;
   bucket: string;
   initiative: string | null; // optional
+  // Salesforce opportunity link or 15/18-char ID, captured (mainly on proposals)
+  // so the external influenced-revenue dashboard can match a proposal to its $.
+  salesforceOpportunity: string | null;
   createdById: string;
   createdBy: UserRef;
   assignments: Assignment[];

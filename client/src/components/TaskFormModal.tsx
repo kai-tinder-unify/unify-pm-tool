@@ -33,6 +33,7 @@ export default function TaskFormModal({
   const [dueDate, setDueDate] = useState(toInputDate(existing.estimatedDueDate));
   const [bucket, setBucket] = useState(existing.bucket);
   const [initiative, setInitiative] = useState(existing.initiative || '');
+  const [salesforceOpportunity, setSalesforceOpportunity] = useState(existing.salesforceOpportunity || '');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -60,6 +61,7 @@ export default function TaskFormModal({
           estimatedDueDate: dueMode === 'date' && dueDate ? dueDate : null,
           bucket,
           initiative: initiative || null,
+          salesforceOpportunity: salesforceOpportunity || null,
         },
       });
       toast.success('Task updated');
@@ -171,6 +173,20 @@ export default function TaskFormModal({
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Salesforce opportunity — optional, primarily for proposals (see NewTask). */}
+        <div>
+          <label className="label">Salesforce opportunity</label>
+          <input
+            className="input"
+            value={salesforceOpportunity}
+            onChange={(e) => setSalesforceOpportunity(e.target.value)}
+            placeholder="Opportunity link or ID — e.g. https://…/Opportunity/006… or 006…"
+          />
+          <p className="text-xs text-muted mt-1">
+            Optional. Used to match proposals to influenced revenue.
+          </p>
         </div>
 
         <div className="flex justify-end gap-2 pt-1">

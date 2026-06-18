@@ -189,3 +189,93 @@ export function toInputDate(d: string | Date | null | undefined): string {
   if (!d) return '';
   return new Date(d).toISOString().slice(0, 10);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Salesforce opportunity capture (for proposals → influenced-revenue matching).
+// The tool has no concept of "proposal" beyond the `Proposal/Delivery Support`
+// bucket, so we treat that whole bucket as "proposals" for the nudge below.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * True when a task's bucket is the proposal bucket (`Proposal/Delivery Support`).
+ * Matched by substring (case-insensitive) rather than an exact string so it keeps
+ * working if the bucket label is ever renamed or another "Proposal …" bucket is
+ * added — the goal is just "is this proposal-ish work that should carry an SF link".
+ */
+export function isProposalBucket(bucket: string): boolean {
+  return bucket.toLowerCase().includes('proposal');
+}
+
+/**
+ * Pull a Salesforce Opportunity Id (15- or 18-char, "006" key-prefix) out of a
+ * pasted link or raw value, so the UI can surface the stable ID even when handed a
+ * full Lightning URL. Returns null when no opportunity-shaped token is present.
+ */
+function extractOpportunityId(value: string): string | null {
+  const m = value.match(/\b006[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?\b/);
+  return m ? m[0] : null;
+}
+
+const externalLinkIcon = (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" className="shrink-0">
+    <path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10" strokeLinecap="round" />
+    <path d="M9.5 2.5H13.5V6.5M13 3L7.5 8.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * Renders a captured Salesforce opportunity value. A URL becomes a new-tab link
+ * (labelled with the opportunity Id when one can be extracted, else "Open"); a
+ * bare Id is shown as selectable mono text — we can't build a link from an Id
+ * alone because the org's Salesforce instance URL isn't known to this tool.
+ */
+export function SalesforceLink({ value, className = '' }: { value: string; className?: string }) {
+  const v = value.trim();
+  const isUrl = /^https?:\/\//i.test(v);
+  if (isUrl) {
+    const label = extractOpportunityId(v) ?? 'Open';
+    return (
+      <a
+        href={v}
+        target="_blank"
+        rel="noreferrer"
+        title={v}
+        className={`inline-flex items-center gap-1 font-mono text-xs text-aqua-text hover:text-navy transition-colors ${className}`}
+      >
+        <span className="truncate">{label}</span>
+        {externalLinkIcon}
+      </a>
+    );
+  }
+  // Not a URL — show the raw Id/value as copyable mono text (title carries the full value).
+  return (
+    <span className={`font-mono text-xs text-ink ${className}`} title={v}>
+      {v}
+    </span>
+  );
+}
+
+const warningTriangle = (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+    <path d="M8 1.5L15 14H1L8 1.5z" strokeLinejoin="round" />
+    <path d="M8 6.5v3.5M8 12h.01" strokeLinecap="round" />
+  </svg>
+);
+
+/**
+ * Passive amber flag shown on a proposal that has no Salesforce opportunity yet —
+ * the cue for whoever has Salesforce access (an Ascender or solution/delivery) to
+ * add it. Uses the shared `warn` trio so it reads correctly on the light theme.
+ * `compact` swaps to a shorter label for tight spots like board cards.
+ */
+export function NeedsSfBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      className="pill bg-warn-bg text-warn border-warn-border"
+      title="No Salesforce opportunity linked yet — needed to match this proposal to influenced revenue"
+    >
+      {warningTriangle}
+      {compact ? 'Needs SF link' : 'Needs Salesforce opportunity'}
+    </span>
+  );
+}

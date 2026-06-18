@@ -4,7 +4,18 @@ import { api } from '../api';
 import { useFetch, useLabels } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, fmtDay, Modal } from '../components/ui';
+import {
+  PriorityBadge,
+  StatusBadge,
+  WipPill,
+  Spinner,
+  ErrorNote,
+  fmtDay,
+  Modal,
+  SalesforceLink,
+  NeedsSfBadge,
+  isProposalBucket,
+} from '../components/ui';
 import TaskFormModal from '../components/TaskFormModal';
 import LogHoursModal from '../components/LogHoursModal';
 import type { Task, Assignment } from '../types';
@@ -252,6 +263,40 @@ export default function TaskDetail() {
               {Math.round(totalHours * 10) / 10} logged
             </span>
           </div>
+        </div>
+        {/* Salesforce opportunity — inline-editable free text (link or ID), so anyone
+            with Salesforce access can fill it in without opening the edit modal. The
+            input is keyed by the saved value so it remounts with fresh text after a
+            save+reload. A proposal with no link shows the passive amber nudge. */}
+        <div className="col-span-2 md:col-span-3">
+          <label className="label">Salesforce opportunity</label>
+          <input
+            key={task.salesforceOpportunity || 'none'}
+            className="input"
+            defaultValue={task.salesforceOpportunity || ''}
+            placeholder="Opportunity link or ID — e.g. https://…/Opportunity/006… or 006…"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              // Only write when the value actually changed (avoids a no-op PUT + toast
+              // every time the field loses focus).
+              if (v !== (task.salesforceOpportunity || '')) updateTask({ salesforceOpportunity: v || null });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+          />
+          {task.salesforceOpportunity ? (
+            <div className="mt-1.5">
+              <SalesforceLink value={task.salesforceOpportunity} />
+            </div>
+          ) : isProposalBucket(task.bucket) ? (
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <NeedsSfBadge />
+              <span className="text-xs text-muted">
+                Ask an Ascender with Salesforce access or the solution/delivery team to add it.
+              </span>
+            </div>
+          ) : null}
         </div>
         {task.description && (
           <div className="col-span-2 md:col-span-3">

@@ -10,6 +10,7 @@ import TaskDetail from './pages/TaskDetail';
 import MyWork from './pages/MyWork';
 import Capacity from './pages/Capacity';
 import Analytics from './pages/Analytics';
+import Proposals from './pages/Proposals';
 import Briefings from './pages/Briefings';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
@@ -47,6 +48,14 @@ export default function App() {
         <Route path="/requests" element={<Navigate to="/tasks" replace />} />
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route
+          path="/proposals"
+          element={
+            <RequireAdmin>
+              <Proposals />
+            </RequireAdmin>
+          }
+        />
         <Route path="/briefings" element={<Briefings />} />
         <Route
           path="/capacity"
