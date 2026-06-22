@@ -7,32 +7,66 @@ import { useToast } from '../context/ToastContext';
 import {
   PriorityBadge,
   StatusBadge,
-  WipPill,
   Spinner,
   ErrorNote,
   EmptyState,
   Avatars,
-  fmtDate,
   fmtDay,
   NeedsSfBadge,
   isProposalBucket,
 } from '../components/ui';
 import type { Task, TaskStatus } from '../types';
+import { currentQuarter, quarterRange } from '../lib/quarters';
 
 const POLL_MS = 25000;
 const MS_DAY = 24 * 60 * 60 * 1000;
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
+// Status "activeness" rank — used as the FIRST sort key wherever tasks of mixed
+// status share one list (the up-for-grabs strip and the list view). It surfaces
+// work that's actually moving (in progress) above queued/parked work, so a paused
+// task no longer floats to the top next to the in-progress ones just because it
+// outranks them on priority. Order: actively worked → queued → stuck → parked.
+// This is a deliberate no-op inside the board columns, which are already grouped by
+// a single status (every comparison there ties at 0 and falls through to the
+// user-selected priority/due/created sort).
+const STATUS_ORDER: Record<string, number> = {
+  in_progress: 0,
+  not_started: 1,
+  blocked: 2,
+  paused: 3,
+  closed: 4,
+};
+
 type ViewMode = 'board' | 'list';
 
-// Active (non-complete) statuses shown as board columns. Completed work lives in
-// its own collapsible section at the bottom.
+// User-controlled sort, persisted in the URL search params alongside the filters.
+// Fields map to: priority (PRIORITY_ORDER), due (estimatedDueDate), created
+// (submittedAt). There is intentionally NO effort field — level-of-effort was
+// scrapped from the data model.
+type SortBy = 'priority' | 'due' | 'created';
+type SortDir = 'asc' | 'desc';
+
+// Labels for the board-view field <select>. Kept in declaration order so the
+// dropdown reads priority → due → created, matching the spec's field list.
+const SORT_LABELS: Record<SortBy, string> = {
+  priority: 'Priority',
+  due: 'Due date',
+  created: 'Created',
+};
+
+// Board columns, left → right. The four active statuses plus a terminal "Closed"
+// column. Closed is bounded to the current calendar quarter (see `closedThisQuarter`)
+// so it never grows without limit during the meeting; the full closed history lives
+// on the dedicated Closed-tasks reporting page.
 const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'not_started', label: 'Not started', dot: 'bg-slate-500' },
   // In-progress uses the decorative aqua accent dot (the brand's "in progress" cue).
   { status: 'in_progress', label: 'In progress', dot: 'bg-aqua' },
   { status: 'paused', label: 'Paused', dot: 'bg-violet-400' },
   { status: 'blocked', label: 'Blocked', dot: 'bg-red-400' },
+  // Closed → success green dot, matching the StatusBadge "closed" trio.
+  { status: 'closed', label: 'Closed', dot: 'bg-success' },
 ];
 
 const priorityBorder: Record<string, string> = {
@@ -52,20 +86,6 @@ function dayDiff(date: string): number {
   const [y, m, d] = date.slice(0, 10).split('-').map(Number);
   const b = new Date(y, m - 1, d);
   return Math.round((b.getTime() - a.getTime()) / MS_DAY);
-}
-
-/**
- * Start of the most recent Monday strictly before today — i.e. the previous
- * meeting. Opened during Monday's meeting it covers the past week; opened later
- * it covers since that Monday. Change the loop target to reschedule the cadence.
- */
-function lastMeetingStart(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  do {
-    d.setDate(d.getDate() - 1);
-  } while (d.getDay() !== 1); // 1 = Monday
-  return d;
 }
 
 function initials(name: string): string {
@@ -120,7 +140,6 @@ export default function TaskBoard() {
 
   const [view, setView] = useState<ViewMode>(() => (localStorage.getItem('ascend.taskView') as ViewMode) || 'board');
   const [showFilters, setShowFilters] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -157,7 +176,48 @@ export default function TaskBoard() {
     from: params.get('from') || '',
     to: params.get('to') || '',
   };
-  const activeFilterCount = [...params.keys()].length;
+
+  // Sort is derived from the same URL params as the filters so it survives reloads
+  // and is shareable. We validate the raw param against the allowed sets and fall
+  // back to the defaults (priority / asc) for anything unexpected, so a hand-edited
+  // or stale URL can never push an invalid value into the comparator.
+  const sortBy: SortBy = (['priority', 'due', 'created'] as const).includes(
+    params.get('sortBy') as SortBy,
+  )
+    ? (params.get('sortBy') as SortBy)
+    : 'priority';
+  const sortDir: SortDir = params.get('sortDir') === 'desc' ? 'desc' : 'asc';
+
+  // Filter chips already count every param key; exclude the two sort keys so the
+  // Filters badge keeps reflecting only actual filters, not the (always-present)
+  // sort selection.
+  const activeFilterCount = [...params.keys()].filter((k) => k !== 'sortBy' && k !== 'sortDir').length;
+
+  // Write a sort field into the URL. Choosing a NEW field resets direction to the
+  // sensible default for that field (asc); we don't preserve the previous dir
+  // because "ascending priority" and "ascending due date" are the natural starting
+  // points and avoid surprising the user with an inherited descending order.
+  const setSortBy = (next: SortBy) => {
+    const p = new URLSearchParams(params);
+    p.set('sortBy', next);
+    p.set('sortDir', 'asc');
+    setParams(p, { replace: true });
+  };
+
+  // Flip asc ↔ desc for the current field, leaving the field itself untouched.
+  const toggleSortDir = () => {
+    const p = new URLSearchParams(params);
+    p.set('sortDir', sortDir === 'asc' ? 'desc' : 'asc');
+    setParams(p, { replace: true });
+  };
+
+  // List-view header click: selecting the already-active field toggles its
+  // direction; selecting a different field switches to it (asc). This is the
+  // standard spreadsheet-style "click header to sort, click again to reverse".
+  const onHeaderSort = (field: SortBy) => {
+    if (sortBy === field) toggleSortDir();
+    else setSortBy(field);
+  };
 
   const tasks = useMemo(() => data || [], [data]);
 
@@ -174,7 +234,29 @@ export default function TaskBoard() {
     });
   }, [tasks, f.bucket, f.initiative, f.status, f.person, f.priority, f.from, f.to]);
 
-  const active = useMemo(() => filtered.filter((t) => t.status !== 'complete'), [filtered]);
+  const active = useMemo(() => filtered.filter((t) => t.status !== 'closed'), [filtered]);
+
+  // Closed work to show in the board's Closed column, bounded to the CURRENT
+  // calendar quarter so the column stays a useful "recently wrapped up" view
+  // rather than an ever-growing archive (full history lives on /closed). We match
+  // on closedAt and fall back to updatedAt for any older closed row that predates
+  // closedAt being stamped, so nothing silently drops out of view.
+  const closedThisQuarter = useMemo(() => {
+    const { q, year } = currentQuarter();
+    const { start, end } = quarterRange(q, year);
+    return filtered
+      .filter((t) => {
+        if (t.status !== 'closed') return false;
+        const when = new Date(t.closedAt ?? t.updatedAt).getTime();
+        return when >= start.getTime() && when <= end.getTime();
+      })
+      .sort((a, b) => {
+        // Most recently closed first within the column.
+        const da = new Date(a.closedAt ?? a.updatedAt).getTime();
+        const db = new Date(b.closedAt ?? b.updatedAt).getTime();
+        return db - da;
+      });
+  }, [filtered]);
 
   const isOverdue = (t: Task) => !t.isWip && !!t.estimatedDueDate && dayDiff(t.estimatedDueDate) < 0;
   const isDueSoon = (t: Task) => {
@@ -189,29 +271,64 @@ export default function TaskBoard() {
     dueSoon: active.filter(isDueSoon).length,
     blocked: active.filter((t) => t.status === 'blocked').length,
     paused: active.filter((t) => t.status === 'paused').length,
-    unstaffed: active.filter((t) => !t.assignments.some((a) => !a.endDate)).length,
+    unclaimed: active.filter((t) => !t.assignments.some((a) => !a.endDate)).length,
     // Proposals still missing their Salesforce opportunity link — the gap this
     // feature exists to surface and close.
     missingSf: active.filter((t) => isProposalBucket(t.bucket) && !t.salesforceOpportunity).length,
   };
 
-  const sortCards = (a: Task, b: Task) => {
-    const p = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-    if (p !== 0) return p;
-    const da = a.estimatedDueDate ? new Date(a.estimatedDueDate).getTime() : Infinity;
-    const db = b.estimatedDueDate ? new Date(b.estimatedDueDate).getTime() : Infinity;
-    if (da !== db) return da - db;
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-  };
+  // Comparator honoring the URL-driven sort (sortBy + sortDir), used by both the
+  // board columns and the list view. Memoized on the sort state so the function
+  // identity is stable across renders (avoids re-sorting when only unrelated state
+  // changes) and so the closures it builds always read the current sort.
+  const sortCards = useMemo(() => {
+    // dir multiplier flips the comparison for descending without duplicating each
+    // branch. Note the deliberate exception below: due-date nulls stay last in BOTH
+    // directions, so the multiplier is applied to the dated comparison only.
+    const dir = sortDir === 'asc' ? 1 : -1;
+    return (a: Task, b: Task): number => {
+      // Active-status grouping comes first and is direction-independent: we always
+      // want in-progress work above parked/paused work regardless of asc/desc on the
+      // chosen field. Ties (same status, e.g. within a board column) fall through to
+      // the field comparison below.
+      const s = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+      if (s !== 0) return s;
+      if (sortBy === 'priority') {
+        // PRIORITY_ORDER ranks high(0) → medium(1) → low(2); asc therefore lists
+        // the most urgent work first, which is the intuitive default.
+        const p = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+        if (p !== 0) return p * dir;
+      } else if (sortBy === 'due') {
+        // Tasks without a due date always sort to the BOTTOM regardless of dir —
+        // an undated task is "least scheduled", and surfacing nulls at the top in
+        // desc order would bury every dated task. We special-case the all-null and
+        // one-null pairs before applying the direction multiplier to two real dates.
+        const aHas = !!a.estimatedDueDate;
+        const bHas = !!b.estimatedDueDate;
+        if (!aHas && !bHas) {
+          /* both null → fall through to the created-date tiebreak */
+        } else if (!aHas) {
+          return 1; // a (null) after b
+        } else if (!bHas) {
+          return -1; // a before b (null)
+        } else {
+          const da = new Date(a.estimatedDueDate as string).getTime();
+          const db = new Date(b.estimatedDueDate as string).getTime();
+          if (da !== db) return (da - db) * dir;
+        }
+      } else {
+        // 'created' → submittedAt. asc = oldest requests first.
+        const ca = new Date(a.submittedAt).getTime();
+        const cb = new Date(b.submittedAt).getTime();
+        if (ca !== cb) return (ca - cb) * dir;
+      }
+      // Stable, dir-independent tiebreak: most recently touched first. Keeps card
+      // order deterministic when the primary key ties (e.g. same priority).
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    };
+  }, [sortBy, sortDir]);
 
   const upForGrabs = active.filter((t) => !t.assignments.some((a) => !a.endDate)).sort(sortCards);
-
-  const completed = useMemo(() => {
-    const since = lastMeetingStart().getTime();
-    return filtered
-      .filter((t) => t.status === 'complete' && new Date(t.updatedAt).getTime() >= since)
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [filtered]);
 
   const claim = async (task: Task) => {
     if (!user) return;
@@ -274,6 +391,32 @@ export default function TaskBoard() {
               </button>
             ))}
           </div>
+          {/* Sort control: a field <select> paired with a direction toggle, sitting
+              next to Filters so the two board controls read as a group. Both write to
+              the URL params via the setSort* helpers. */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-line bg-paper-deep p-0.5">
+            <select
+              className="bg-transparent text-[13px] font-medium text-navy px-2 py-1 rounded-md focus:outline-none cursor-pointer"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              title="Sort by"
+            >
+              {(['priority', 'due', 'created'] as const).map((opt) => (
+                <option key={opt} value={opt}>
+                  {SORT_LABELS[opt]}
+                </option>
+              ))}
+            </select>
+            <button
+              className="rounded-md px-2 py-1 text-navy hover:bg-white transition-colors"
+              onClick={toggleSortDir}
+              // Surface the current direction for screen readers and on hover.
+              title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}
+              aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+            >
+              <SortArrow dir={sortDir} />
+            </button>
+          </div>
           <button
             // When the filter panel is open, the toggle takes the navy primary fill.
             className={`btn-secondary relative ${showFilters ? '!bg-navy !text-white' : ''}`}
@@ -304,7 +447,7 @@ export default function TaskBoard() {
           <CountPill label="due ≤3d" value={counts.dueSoon} tone="amber" />
           <CountPill label="blocked" value={counts.blocked} tone="red" />
           <CountPill label="paused" value={counts.paused} tone="violet" />
-          <CountPill label="unstaffed" value={counts.unstaffed} tone="amber" />
+          <CountPill label="unclaimed" value={counts.unclaimed} tone="amber" />
           <CountPill label="missing SF link" value={counts.missingSf} tone="amber" />
         </div>
         <div className="flex items-center gap-2">
@@ -434,9 +577,21 @@ export default function TaskBoard() {
 
       {/* Board / list */}
       {view === 'board' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           {COLUMNS.map((col) => {
-            const items = active.filter((t) => t.status === col.status).sort(sortCards);
+            // The Closed column draws from the current-quarter closed set (already
+            // sorted most-recent-first); the active columns slice the active list by
+            // status and apply the priority/due sort.
+            // Board columns show only TOP-LEVEL tasks (parentId == null) so subtasks
+            // never appear as their own cards — they live nested under their parent in
+            // TaskDetail, and a parent surfaces them via the subtask-progress chip.
+            // (The up-for-grabs strip and the list view intentionally still show all
+            // tasks, including subtasks, which is acceptable per the feature spec.)
+            const items = (
+              col.status === 'closed'
+                ? closedThisQuarter
+                : active.filter((t) => t.status === col.status).sort(sortCards)
+            ).filter((t) => t.parentId == null);
             const isDropTarget = dragOverCol === col.status && dragId !== null;
             return (
               <div
@@ -507,14 +662,25 @@ export default function TaskBoard() {
                 <th className="th pl-5">Task</th>
                 <th className="th">Leader</th>
                 <th className="th">Bucket</th>
-                <th className="th">Priority</th>
-                <th className="th">Status</th>
+                <SortableTh field="priority" sortBy={sortBy} sortDir={sortDir} onSort={onHeaderSort}>
+                  Priority
+                </SortableTh>
+                {/* No dedicated Due column exists in the list, so the Status header
+                    doubles as the due-date sort trigger (per spec: "a Due (if present,
+                    else Status)"). The label stays "Status" to match the cell content. */}
+                <SortableTh field="due" sortBy={sortBy} sortDir={sortDir} onSort={onHeaderSort}>
+                  Status
+                </SortableTh>
                 <th className="th">Hours</th>
-                <th className="th pr-5">Requested</th>
+                <SortableTh field="created" sortBy={sortBy} sortDir={sortDir} onSort={onHeaderSort} className="pr-5">
+                  Requested
+                </SortableTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {active.map((t) => {
+              {/* List view honors the same sort as the board. Copy before sorting so
+                  we never mutate the memoized `active` array in place. */}
+              {[...active].sort(sortCards).map((t) => {
                 const hours = t.assignments.reduce((s, a) => s + a.hoursLogged, 0);
                 return (
                   <tr key={t.id} className="row-hover group">
@@ -541,10 +707,12 @@ export default function TaskBoard() {
                       <PriorityBadge priority={t.priority} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5">
-                        <StatusBadge status={t.status} />
-                        {t.isWip && <WipPill />}
-                      </span>
+                      {/* Show the workflow status only. WIP (ongoing / no due date) is a
+                          scheduling attribute, not a status — pairing it with the status
+                          badge read as a task having "two statuses" (e.g. In progress + WIP),
+                          so it no longer renders here. WIP still shows on the task detail
+                          page's timeline and drives the Analytics "WIP tasks" view. */}
+                      <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs tabular-nums text-muted">
@@ -562,61 +730,6 @@ export default function TaskBoard() {
           {active.length === 0 && <EmptyState>No tasks match the current filters</EmptyState>}
         </div>
       )}
-
-      {/* Completed since last meeting (collapsible, at the bottom) */}
-      <div className="card">
-        <button
-          className="w-full flex items-center justify-between px-6 py-4 text-left"
-          onClick={() => setShowCompleted((s) => !s)}
-        >
-          <span className="flex items-center gap-2">
-            <span className="section-title">Completed since last meeting</span>
-            <span className="font-mono text-[11px] tabular-nums text-muted bg-paper-deep border border-line rounded-full px-2 py-0.5">
-              {completed.length}
-            </span>
-          </span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className={`text-slate-500 transition-transform ${showCompleted ? 'rotate-180' : ''}`}
-          >
-            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        {showCompleted && (
-          <div className="px-6 pb-6">
-            <p className="text-xs text-slate-500 mb-4">Finished on or after {fmtDate(lastMeetingStart())}</p>
-            {completed.length === 0 ? (
-              <EmptyState>Nothing wrapped up since the last meeting yet</EmptyState>
-            ) : (
-              <ul className="divide-y divide-line">
-                {completed.map((t) => {
-                  const contributors = [...new Set(t.assignments.map((a) => a.user.name))];
-                  const who = contributors.length > 0 ? contributors.join(', ') : '—';
-                  return (
-                    <li key={t.id} className="list-row py-2.5 flex items-center justify-between gap-3 text-sm">
-                      <span className="min-w-0">
-                        <Link
-                          to={`/tasks/${t.id}`}
-                          className="font-medium text-ink transition-colors hover:text-aqua-text"
-                        >
-                          {t.title}
-                        </Link>
-                        <span className="text-muted"> — {who}</span>
-                      </span>
-                      <span className="mono-meta shrink-0">{fmtDate(t.updatedAt)}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -631,6 +744,71 @@ const tonePill: Record<string, string> = {
   // (600 text reads AA-safe on the light violet wash, unlike the old 300).
   violet: 'bg-violet-500/10 text-violet-600 border-violet-500/30',
 };
+
+// Direction caret used by both the board toggle button and the active list header.
+// A single chevron that points up for asc and down for desc — the standard sort cue.
+// `dir` controls the rotation; we rotate one glyph rather than swapping icons so the
+// indicator stays visually centered.
+function SortArrow({ dir }: { dir: SortDir }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      // asc → caret up (▲), desc → caret down (▼). transition keeps the flip smooth.
+      className={`transition-transform duration-100 ${dir === 'desc' ? 'rotate-180' : ''}`}
+      aria-hidden="true"
+    >
+      <path d="M4 10l4-4 4 4" />
+    </svg>
+  );
+}
+
+// A clickable table header that drives the shared sort. Shows the direction caret
+// only when its field is the active sort, so the user can see at a glance which
+// column the table is ordered by. Clicking calls onSort(field), which toggles the
+// direction if already active or switches to this field (asc) otherwise.
+function SortableTh({
+  field,
+  sortBy,
+  sortDir,
+  onSort,
+  children,
+  className = '',
+}: {
+  field: SortBy;
+  sortBy: SortBy;
+  sortDir: SortDir;
+  onSort: (field: SortBy) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const isActive = sortBy === field;
+  return (
+    <th className={`th ${className}`}>
+      <button
+        type="button"
+        // Inline flex so the caret hugs the label; active header takes navy text to
+        // distinguish it from the muted inactive headers.
+        className={`inline-flex items-center gap-1 transition-colors hover:text-navy ${
+          isActive ? 'text-navy' : ''
+        }`}
+        onClick={() => onSort(field)}
+        aria-sort={isActive ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      >
+        {children}
+        {/* Reserve no space when inactive (the caret simply isn't rendered) so column
+            widths stay stable as the active sort moves between headers. */}
+        {isActive && <SortArrow dir={sortDir} />}
+      </button>
+    </th>
+  );
+}
 
 function CountPill({ label, value, tone = 'default' }: { label: string; value: number; tone?: string }) {
   return (
@@ -657,6 +835,12 @@ function BoardCard({
   onDragEnd: (e: React.DragEvent) => void;
 }) {
   const activeContribs = task.assignments.filter((a) => !a.endDate);
+  // Subtask roll-up for the parent card. "Done" mirrors the board's terminal state
+  // (status === 'closed'); we render a compact chip only when the task actually has
+  // subtasks so plain tasks stay visually unchanged.
+  const subtasks = task.subtasks ?? [];
+  const subtasksDone = subtasks.filter((s) => s.status === 'closed').length;
+  const allSubtasksDone = subtasks.length > 0 && subtasksDone === subtasks.length;
   return (
     <div
       draggable
@@ -673,6 +857,23 @@ function BoardCard({
       >
         {task.title}
       </Link>
+      {subtasks.length > 0 && (
+        // Subtask-progress chip: success trio once every subtask is closed, otherwise
+        // the neutral recessed well. Tiny tree glyph distinguishes it from the due/SF
+        // pills below.
+        <span
+          className={`pill mt-2 ${
+            allSubtasksDone
+              ? 'bg-success-bg text-success border-success-border'
+              : 'bg-paper-deep text-muted border-line'
+          }`}
+        >
+          <span className="font-semibold tabular-nums">
+            {subtasksDone}/{subtasks.length}
+          </span>
+          subtasks done
+        </span>
+      )}
       <div className="flex items-center justify-between gap-2 mt-2.5">
         {activeContribs.length > 0 ? (
           <span className="flex items-center gap-1.5 min-w-0">

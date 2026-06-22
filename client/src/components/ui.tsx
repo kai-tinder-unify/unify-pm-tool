@@ -9,9 +9,9 @@ import type { Priority, TaskStatus } from '../types';
 // Re-skinned for the Unify Command Center light theme: every chip is now a
 // "tint background + same-hue dark text + matching border" pairing (replacing
 // the old pale-text-on-dark, white-alpha-fill chips that were unreadable on a
-// light surface). Semantic mapping: aqua = in-progress, green = complete/done,
-// red = blocked/high, amber = paused/medium, yellow = WIP emphasis, neutral
-// (paper-deep + muted) = not-started/low.
+// light surface). Semantic mapping: aqua = in-progress, green = closed/done,
+// red = blocked/high, amber = paused/medium, neutral (paper-deep + muted) =
+// not-started/low.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Priority → chip styles. `pill` is the bg/text/border trio; `dot` is the leading dot.
@@ -32,24 +32,13 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
   );
 }
 
-// WIP (work-in-progress / ongoing, no due date) uses the brand yellow as emphasis.
-// Yellow has poor text contrast, so the chip pairs a pale-yellow fill with dark
-// amber text and a bright-yellow dot — legible while still reading as "yellow".
-export function WipPill() {
-  return (
-    <span className="pill bg-yellow-soft text-yellow-deep border-[#f0e3a0]">
-      <span className="pill-dot bg-yellow" />
-      WIP
-    </span>
-  );
-}
-
 const statusLabels: Record<string, string> = {
   not_started: 'Not started',
   in_progress: 'In progress',
   paused: 'Paused',
   blocked: 'Blocked',
-  complete: 'Complete',
+  // Single terminal state (renamed from the old `complete`).
+  closed: 'Closed',
 };
 
 const statusStyles: Record<string, { pill: string; dot: string }> = {
@@ -58,7 +47,8 @@ const statusStyles: Record<string, { pill: string; dot: string }> = {
   in_progress: { pill: 'bg-aqua-light text-aqua-text border-aqua/30', dot: 'bg-aqua' },
   paused: { pill: 'bg-warn-bg text-warn border-warn-border', dot: 'bg-warn' },
   blocked: { pill: 'bg-danger-bg text-danger border-danger-border', dot: 'bg-danger' },
-  complete: { pill: 'bg-success-bg text-success border-success-border', dot: 'bg-success' },
+  // Closed (done) keeps the success/green trio — reads as a positive terminal state.
+  closed: { pill: 'bg-success-bg text-success border-success-border', dot: 'bg-success' },
 };
 
 export function StatusBadge({ status }: { status: TaskStatus }) {

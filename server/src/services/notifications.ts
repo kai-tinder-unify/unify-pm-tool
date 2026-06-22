@@ -48,6 +48,18 @@ const ENABLED_BY: Record<EventType, SettingKey | null> = {
   task_ping: null,
 };
 
+/**
+ * Per-event category webhook setting. Each event posts to its category's channel when
+ * that setting is non-blank, else falls back to the default channel (teamsWebhookUrl).
+ * This is how a single firm can split assignments / pings / the daily digest across
+ * separate Teams channels while staying backward compatible with a single webhook.
+ */
+const WEBHOOK_BY: Record<EventType, SettingKey> = {
+  daily_checkin: 'teamsWebhookDaily',
+  task_joined: 'teamsWebhookAssignments',
+  task_ping: 'teamsWebhookPings',
+};
+
 /** The Adaptive Card builder for each event. */
 const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => AdaptiveCard } = {
   daily_checkin: (e) => {
@@ -117,8 +129,12 @@ export async function notifyTeams(event: TeamsEvent): Promise<boolean> {
     const settings = await getSettings();
     const toggle = ENABLED_BY[event.type];
     if (toggle && settings[toggle] !== 'true') return false;
-    if (!settings.teamsWebhookUrl) return false;
-    await sendTeamsCard(buildCard(event));
+    // Route to this event's category channel. Each notification type has its own
+    // webhook now (no shared default channel); a blank category URL means this
+    // notification is simply disabled, so we no-op (fire-and-forget: never throw).
+    const url = settings[WEBHOOK_BY[event.type]];
+    if (!url) return false;
+    await sendTeamsCard(buildCard(event), url);
     return true;
   } catch (err) {
     console.error(`[teams] Failed to post '${event.type}' notification:`, err);
@@ -132,7 +148,18 @@ export async function notifyTeams(event: TeamsEvent): Promise<boolean> {
  * real success/error feedback rather than fire-and-forget.
  */
 export async function sendTeamsEvent(event: TeamsEvent): Promise<void> {
-  await sendTeamsCard(buildCard(event));
+  const settings = await getSettings();
+  // Same category→channel resolution as notifyTeams, but this is the manual path:
+  // surface a clear error instead of silently no-opping when no channel is configured,
+  // so the admin who clicked the button gets real feedback.
+  const url = settings[WEBHOOK_BY[event.type]];
+  if (!url) {
+    throw Object.assign(new Error('Teams webhook is not configured. Set it in Settings.'), {
+      status: 400,
+      expose: true,
+    });
+  }
+  await sendTeamsCard(buildCard(event), url);
 }
 
 // --- Adaptive Card building helpers ---

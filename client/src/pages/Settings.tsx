@@ -13,7 +13,6 @@ export default function Settings() {
   const { allUsers, reload: reloadUsers } = useUsers(true);
 
   const [form, setForm] = useState<Record<string, string>>({});
-  const [smtpPass, setSmtpPass] = useState('');
   const [bucketsText, setBucketsText] = useState('');
   const [initiativesText, setInitiativesText] = useState('');
   const [saving, setSaving] = useState(false);
@@ -27,14 +26,18 @@ export default function Settings() {
       briefingDay: data.briefingDay || 'friday',
       briefingTime: data.briefingTime || '16:00',
       briefingEnabled: data.briefingEnabled || 'true',
-      smtpHost: data.smtpHost || '',
-      smtpPort: data.smtpPort || '587',
-      smtpUser: data.smtpUser || '',
-      smtpFrom: data.smtpFrom || '',
-      teamsWebhookUrl: data.teamsWebhookUrl || '',
+      // Per-category Teams webhooks — the only Teams config now (the shared default
+      // channel field was removed). A blank value disables that notification type.
+      teamsWebhookAssignments: data.teamsWebhookAssignments || '',
+      teamsWebhookPings: data.teamsWebhookPings || '',
+      teamsWebhookDaily: data.teamsWebhookDaily || '',
       teamsPingEnabled: data.teamsPingEnabled || 'false',
       teamsTaskJoinedEnabled: data.teamsTaskJoinedEnabled || 'false',
-      briefingDistributionList: data.briefingDistributionList || '',
+      // Capacity (advisory): level→hours mapping and the soft reference line.
+      capacityHoursLow: data.capacityHoursLow || '30',
+      capacityHoursMedium: data.capacityHoursMedium || '40',
+      capacityHoursHigh: data.capacityHoursHigh || '50',
+      capacitySoftTargetHours: data.capacitySoftTargetHours || '40',
     });
     try {
       setBucketsText((JSON.parse(data.buckets || '[]') as string[]).join('\n'));
@@ -54,24 +57,13 @@ export default function Settings() {
         buckets: JSON.stringify(bucketsText.split('\n').map((s) => s.trim()).filter(Boolean)),
         initiatives: JSON.stringify(initiativesText.split('\n').map((s) => s.trim()).filter(Boolean)),
       };
-      if (smtpPass) body.smtpPass = smtpPass;
       await api('/api/settings', { method: 'PUT', body });
       toast.success('Settings saved');
-      setSmtpPass('');
       reload();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const testEmail = async () => {
-    try {
-      const res = await api<{ message: string }>('/api/settings/test-email', { method: 'POST', body: {} });
-      toast.success(res.message);
-    } catch (e: any) {
-      toast.error(e.message);
     }
   };
 
@@ -183,45 +175,56 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Email */}
+      {/* Capacity (advisory client-engagement view) */}
       <section className="card p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="section-title">Email (SMTP)</h2>
-          <button className="btn-secondary" onClick={testEmail}>
-            Send test email
-          </button>
-        </div>
-        <div className="grid md:grid-cols-2 gap-4">
+        <h2 className="section-title">Capacity</h2>
+        <p className="text-xs text-muted">
+          Client-hours baseline per self-reported engagement level, and the soft reference line the
+          Capacity page measures everyone against. Advisory only — nothing is blocked or capped.
+        </p>
+        <div className="grid md:grid-cols-4 gap-4">
           <div>
-            <label className="label">Host</label>
-            <input className="input" value={form.smtpHost || ''} onChange={(e) => set('smtpHost', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Port</label>
-            <input className="input" value={form.smtpPort || ''} onChange={(e) => set('smtpPort', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Username</label>
-            <input className="input" value={form.smtpUser || ''} onChange={(e) => set('smtpUser', e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Password {data?.smtpPassSet && <span className="text-success normal-case">(set)</span>}</label>
+            <label className="label">Low hours</label>
             <input
-              type="password"
+              type="number"
               className="input"
-              value={smtpPass}
-              onChange={(e) => setSmtpPass(e.target.value)}
-              placeholder={data?.smtpPassSet ? 'Leave blank to keep current' : ''}
+              value={form.capacityHoursLow || ''}
+              onChange={(e) => set('capacityHoursLow', e.target.value)}
             />
           </div>
-          <div className="md:col-span-2">
-            <label className="label">From address</label>
-            <input className="input" value={form.smtpFrom || ''} onChange={(e) => set('smtpFrom', e.target.value)} />
+          <div>
+            <label className="label">Medium hours</label>
+            <input
+              type="number"
+              className="input"
+              value={form.capacityHoursMedium || ''}
+              onChange={(e) => set('capacityHoursMedium', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">High hours</label>
+            <input
+              type="number"
+              className="input"
+              value={form.capacityHoursHigh || ''}
+              onChange={(e) => set('capacityHoursHigh', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Soft target</label>
+            <input
+              type="number"
+              className="input"
+              value={form.capacitySoftTargetHours || ''}
+              onChange={(e) => set('capacitySoftTargetHours', e.target.value)}
+            />
           </div>
         </div>
       </section>
 
-      {/* Teams notifications */}
+      {/* Teams notifications — three per-category channel webhooks. Each routes one
+          class of notification to its own Teams channel; a blank field disables that
+          notification type. (The old shared "default channel" webhook was removed.) */}
       <section className="card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="section-title">Microsoft Teams notifications</h2>
@@ -229,15 +232,47 @@ export default function Settings() {
             Send test message
           </button>
         </div>
-        <div>
-          <label className="label">Channel webhook URL (Power Automate Workflows)</label>
-          <input className="input" value={form.teamsWebhookUrl || ''} onChange={(e) => set('teamsWebhookUrl', e.target.value)} />
-          <p className="text-xs text-muted mt-1">
-            On the target Teams channel, add a <span className="font-medium text-ink">Workflows</span> automation from the
-            "Post to a channel when a webhook request is received" template, then paste its URL here. Used for the
-            weekly briefing and the notifications below.
-          </p>
+        <p className="text-xs text-muted">
+          For each channel, add a <span className="font-medium text-ink">Workflows</span> automation from the
+          "Post to a channel when a webhook request is received" template in Teams, then paste its URL below.
+        </p>
+
+        <div className="grid gap-4">
+          <div>
+            <label className="label">Assignments channel webhook</label>
+            <input
+              className="input"
+              value={form.teamsWebhookAssignments || ''}
+              onChange={(e) => set('teamsWebhookAssignments', e.target.value)}
+            />
+            <p className="text-xs text-muted mt-1">
+              Cards for someone joining a task. Leave blank to disable.
+            </p>
+          </div>
+          <div>
+            <label className="label">Reminder pings channel webhook</label>
+            <input
+              className="input"
+              value={form.teamsWebhookPings || ''}
+              onChange={(e) => set('teamsWebhookPings', e.target.value)}
+            />
+            <p className="text-xs text-muted mt-1">
+              Per-task "Send ping" nudges. Leave blank to disable.
+            </p>
+          </div>
+          <div>
+            <label className="label">Daily ping channel webhook</label>
+            <input
+              className="input"
+              value={form.teamsWebhookDaily || ''}
+              onChange={(e) => set('teamsWebhookDaily', e.target.value)}
+            />
+            <p className="text-xs text-muted mt-1">
+              The daily check-in digest. Leave blank to disable.
+            </p>
+          </div>
         </div>
+
         <div className="space-y-2 pt-1">
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input
@@ -283,6 +318,11 @@ export default function Settings() {
       {/* Briefing schedule */}
       <section className="card p-6 space-y-4">
         <h2 className="section-title">Weekly briefing schedule</h2>
+        <p className="text-xs text-muted">
+          When enabled, a personal trailing-7-day briefing is auto-generated on this day/time for each active
+          person who logged hours that week. Everyone can also generate their own for any date range on the
+          Briefings page, and each person only sees their own.
+        </p>
         <div className="flex flex-wrap items-end gap-4">
           <div>
             <label className="label">Day of week</label>
@@ -306,16 +346,6 @@ export default function Settings() {
             />
             Briefing schedule enabled
           </label>
-        </div>
-        <div>
-          <label className="label">Briefing distribution list (comma-separated emails)</label>
-          <textarea
-            className="input"
-            rows={2}
-            value={form.briefingDistributionList || ''}
-            onChange={(e) => set('briefingDistributionList', e.target.value)}
-            placeholder="leader1@unifyconsulting.com, leader2@unifyconsulting.com"
-          />
         </div>
       </section>
 

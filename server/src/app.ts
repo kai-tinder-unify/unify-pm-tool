@@ -9,6 +9,7 @@ import briefingRoutes from './routes/briefings';
 import checkinRoutes from './routes/checkins';
 import userRoutes from './routes/users';
 import settingsRoutes from './routes/settings';
+import capacityRoutes from './routes/capacity';
 import { requireAuth } from './middleware/auth';
 
 declare module 'express-session' {
@@ -47,6 +48,7 @@ export function createApp() {
   app.use('/api/checkins', requireAuth, checkinRoutes);
   app.use('/api/users', requireAuth, userRoutes);
   app.use('/api/settings', requireAuth, settingsRoutes);
+  app.use('/api/capacity', requireAuth, capacityRoutes);
 
   // Serve the built client in production
   if (process.env.NODE_ENV === 'production') {

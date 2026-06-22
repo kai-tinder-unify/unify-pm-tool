@@ -16,7 +16,7 @@ enum TaskStatus {
   not_started
   in_progress
   blocked
-  complete
+  closed // single terminal state — a task is "done"/wrapped up (renamed from the old `complete`)
   paused // deliberately parked (e.g. awaiting the next meeting); distinct from blocked (stuck on something external)
 }
 
@@ -24,6 +24,16 @@ enum Priority {
   high
   medium
   low
+}
+
+// Self-reported weekly client-engagement level. Maps (via configurable settings)
+// to a baseline of client hours: low=30, medium=40, high=50 by default. It is an
+// ADVISORY signal only — the Capacity page uses it to show "who has room" against
+// a soft 40h reference line; nothing is ever blocked or capped on this value.
+enum CapacityLevel {
+  low
+  medium
+  high
 }
 
 model User {
@@ -39,6 +49,12 @@ model User {
   createdTasks    Task[]           @relation("TaskCreator")
   assignments     TaskAssignment[]
   checkIns        CheckIn[]
+  // One self-reported client-engagement rating per (user, week). Drives the
+  // advisory Capacity page; see WeeklyCapacity below.
+  weeklyCapacities WeeklyCapacity[]
+  // Personal briefings this user has generated (or had auto-generated). Each is owned
+  // by and visible only to this user; see WeeklyBriefing.
+  briefings        WeeklyBriefing[]
 }
 
 model Task {
@@ -50,6 +66,10 @@ model Task {
   status           TaskStatus @default(not_started)
   priority         Priority   @default(medium)
   isWip            Boolean    @default(false)
+  // Timestamp the task became terminal (status = closed). Set when it transitions
+  // into `closed`, cleared back to null if it is reopened. Drives the Closed board
+  // column (current-quarter window) and the Closed-tasks reporting view.
+  closedAt         DateTime?
   estimatedDueDate DateTime? // null when isWip is true or timeline unknown
   targetStartDate  DateTime?
   estimatedHours   Float?
@@ -63,6 +83,14 @@ model Task {
   salesforceOpportunity String?
   createdById      String
   createdBy        User       @relation("TaskCreator", fields: [createdById], references: [id])
+  // Parent/child (subtask) link, one level deep. A subtask is a normal Task whose
+  // parentId points at its parent; the parent's own parentId must stay null (we
+  // reject nesting beyond one level in the POST route). Cascade delete means
+  // removing a parent also removes its subtasks, matching the board/detail UX
+  // where subtasks have no independent existence away from their parent.
+  parentId         String?
+  parent           Task?      @relation("Subtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks         Task[]     @relation("Subtasks")
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -71,6 +99,7 @@ model Task {
 
   @@index([status])
   @@index([bucket])
+  @@index([parentId])
 }
 
 model TaskAssignment {
@@ -90,15 +119,21 @@ model TaskAssignment {
   @@index([userId])
 }
 
+// A personal briefing. Each row belongs to one user (its owner) and summarizes only
+// that person's logged hours and tasks over [weekStart, weekEnd]; users only ever see
+// their own. weekStart/weekEnd are generic range bounds — a briefing can span any
+// window, not just a calendar week. Delivery flags were dropped: briefings are read
+// in-app only, never emailed or posted. Cascade-deletes with the owning user.
 model WeeklyBriefing {
-  id           String    @id @default(cuid())
-  weekStart    DateTime
-  weekEnd      DateTime
-  content      String // markdown
-  generatedAt  DateTime  @default(now())
-  sentViaEmail Boolean   @default(false)
-  sentViaTeams Boolean   @default(false)
-  sentAt       DateTime?
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart   DateTime
+  weekEnd     DateTime
+  content     String // markdown
+  generatedAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model CheckIn {
@@ -113,6 +148,25 @@ model CheckIn {
   respondedAt  DateTime?
 
   @@index([userId, sentAt])
+}
+
+// A single person's self-reported client-engagement level for one week. We store
+// one row per (userId, weekStart) and upsert on that pair so re-rating a week
+// overwrites rather than duplicates. weekStart is always the Monday of the week at
+// UTC midnight, giving a stable, timezone-independent key to group/filter by.
+model WeeklyCapacity {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  weekStart DateTime // Monday 00:00 UTC of the rated week
+  level     CapacityLevel
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // One rating per person per week — the POST endpoint upserts on this pair.
+  @@unique([userId, weekStart])
+  // The Capacity page always queries by a single week, so index weekStart.
+  @@index([weekStart])
 }
 
 model AppSetting {

@@ -1,136 +1,108 @@
-import { marked } from 'marked';
 import { prisma } from '../prisma';
-import { sendEmail } from './email';
-import { sendTeamsMessage } from './teams';
-import { getSettings } from './settings';
 
-function fmtDate(d: Date) {
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-/** Calendar-day values (due dates) are stored at UTC midnight — format by UTC day. */
+/**
+ * Format a date by its UTC calendar day. Used for both due dates (stored at UTC
+ * midnight) and the briefing's range bounds (also constructed in UTC), so the
+ * displayed range matches the calendar dates that were requested.
+ */
 function fmtDay(d: Date) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 function dueLabel(task: { isWip: boolean; estimatedDueDate: Date | null }) {
-  if (task.isWip) return 'WIP';
+  if (task.isWip) return 'ongoing';
   if (task.estimatedDueDate) return `due: ${fmtDay(task.estimatedDueDate)}`;
   return 'no date set';
 }
 
-/** Generates the weekly briefing markdown for the trailing 7 days and stores it. */
-export async function generateBriefing() {
-  const weekEnd = new Date();
-  const weekStart = new Date(weekEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+/** Round to 0.1h for display so summed floats don't show long tails. */
+function round1(n: number) {
+  return Math.round(n * 10) / 10;
+}
 
-  const assignments = await prisma.taskAssignment.findMany({
-    where: { updatedAt: { gte: weekStart } },
-    include: { user: true, task: true },
+/**
+ * Generates a PERSONAL briefing for one user over a date range and stores it. A
+ * briefing belongs to its owner (userId) and is only ever shown to that user; it
+ * summarizes just their own activity — the hours they logged and the tasks they were
+ * on — never the rest of the team's.
+ *
+ * The range is [rangeStart, rangeEnd]; both default so the weekly scheduled run and a
+ * bare "Generate" still produce the trailing-7-days briefing. Bounds are persisted in
+ * WeeklyBriefing.weekStart/weekEnd (reused as generic range bounds, not just a week).
+ *
+ * @param userId     Owner of the briefing; all activity is scoped to this user.
+ * @param rangeStart Inclusive start of the window. Defaults to 7 days before the end.
+ * @param rangeEnd   Inclusive end of the window. Defaults to now.
+ * @returns The created WeeklyBriefing row (with markdown `content`).
+ */
+export async function generateBriefing(userId: string, rangeStart?: Date, rangeEnd?: Date) {
+  const end = rangeEnd ?? new Date();
+  const start = rangeStart ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // What this person worked on in the window: their own assignments touched in range.
+  // hoursLogged is the assignment's running total (there is no per-window hours ledger),
+  // so a task touched in the window contributes its cumulative hours — matches how the
+  // app has always summarized effort. Heaviest tasks first.
+  const worked = await prisma.taskAssignment.findMany({
+    where: { userId, updatedAt: { gte: start, lte: end } },
+    include: { task: true },
+    orderBy: { hoursLogged: 'desc' },
   });
 
-  // Group: task -> contributor lines
-  const byTask = new Map<string, { task: (typeof assignments)[number]['task']; lines: string[] }>();
-  for (const a of assignments) {
-    const key = a.taskId;
-    if (!byTask.has(key)) byTask.set(key, { task: a.task, lines: [] });
-    byTask.get(key)!.lines.push(`  - ${a.user.name}: ${a.hoursLogged} hrs`);
-  }
-
-  const completedCount = await prisma.task.count({
-    where: { status: 'complete', updatedAt: { gte: weekStart } },
+  // What's currently on their plate: their still-active assignments (no end date) on
+  // tasks that aren't closed. Ordered by priority then soonest due.
+  const onPlate = await prisma.taskAssignment.findMany({
+    where: { userId, endDate: null, task: { status: { not: 'closed' } } },
+    include: { task: true },
+    orderBy: [{ task: { priority: 'asc' } }, { task: { estimatedDueDate: 'asc' } }],
   });
-  const newTaskCount = await prisma.task.count({ where: { submittedAt: { gte: weekStart } } });
 
-  const totalHours = assignments.reduce((sum, a) => sum + a.hoursLogged, 0);
-  const contributors = new Set(assignments.map((a) => a.userId)).size;
-
-  const hoursByInitiative = new Map<string, number>();
-  for (const a of assignments) {
-    if (!a.task.initiative) continue;
-    hoursByInitiative.set(a.task.initiative, (hoursByInitiative.get(a.task.initiative) || 0) + a.hoursLogged);
-  }
-  const topInitiative = [...hoursByInitiative.entries()].sort((a, b) => b[1] - a[1])[0];
-
-  const upcoming = await prisma.task.findMany({
-    where: { status: { in: ['not_started', 'in_progress', 'blocked', 'paused'] } },
-    orderBy: [{ priority: 'asc' }, { estimatedDueDate: 'asc' }],
-    take: 8,
-  });
+  const totalHours = worked.reduce((sum, a) => sum + a.hoursLogged, 0);
+  // Tasks they worked on that closed within the window.
+  const closedThisPeriod = worked.filter(
+    (a) => a.task.status === 'closed' && a.task.closedAt && a.task.closedAt >= start && a.task.closedAt <= end,
+  ).length;
 
   const lines: string[] = [];
-  lines.push(`## Unify Ascend — Week of ${fmtDate(weekStart)} to ${fmtDate(weekEnd)}`);
+  lines.push(`## Your briefing — ${fmtDay(start)} to ${fmtDay(end)}`);
   lines.push('');
-  lines.push('### What we worked on');
-  if (byTask.size === 0) {
-    lines.push('- No hours were logged this week.');
+
+  lines.push('### Summary');
+  lines.push(
+    `- ${round1(totalHours)} hours logged across ${worked.length} task${worked.length === 1 ? '' : 's'}`,
+  );
+  lines.push(`- ${closedThisPeriod} of your task${closedThisPeriod === 1 ? '' : 's'} closed this period`);
+  lines.push(`- ${onPlate.length} task${onPlate.length === 1 ? '' : 's'} currently on your plate`);
+  lines.push('');
+
+  lines.push('### What you worked on');
+  if (worked.length === 0) {
+    lines.push('- You logged no hours in this period.');
   } else {
-    for (const { task, lines: contrib } of byTask.values()) {
-      const labels = [task.bucket, task.initiative].filter(Boolean).join(' / ');
-      lines.push(`- ${task.title} — for ${task.requestedBy} (${labels}, ${task.priority}) [${dueLabel(task)}]`);
-      lines.push(...contrib);
+    for (const a of worked) {
+      const meta = [a.task.bucket, a.task.initiative].filter(Boolean).join(' / ');
+      const tail = [meta, dueLabel(a.task), `status: ${a.task.status.replace('_', ' ')}`]
+        .filter(Boolean)
+        .join(', ');
+      lines.push(`- ${a.task.title}: ${round1(a.hoursLogged)} hrs (${tail})`);
     }
   }
   lines.push('');
-  lines.push('### Highlights');
-  lines.push(`- ${completedCount} task${completedCount === 1 ? '' : 's'} completed this week`);
-  lines.push(`- ${newTaskCount} new task${newTaskCount === 1 ? '' : 's'} received`);
-  lines.push(`- ${Math.round(totalHours * 10) / 10} total hours logged across ${contributors} team member${contributors === 1 ? '' : 's'}`);
-  if (topInitiative) {
-    lines.push(`- Top initiative: ${topInitiative[0]} (${Math.round(topInitiative[1] * 10) / 10} hrs)`);
-  }
-  lines.push('');
-  lines.push('### Coming up');
-  if (upcoming.length === 0) {
-    lines.push('- No open tasks.');
+
+  lines.push('### On your plate');
+  if (onPlate.length === 0) {
+    lines.push('- Nothing currently assigned.');
   } else {
-    for (const t of upcoming) {
+    for (const a of onPlate) {
       lines.push(
-        `- ${t.title} — for ${t.requestedBy}, ${t.isWip ? 'WIP' : t.estimatedDueDate ? `due: ${fmtDay(t.estimatedDueDate)}` : 'no date'}, priority: ${t.priority}`,
+        `- ${a.task.title} — for ${a.task.requestedBy}, ${dueLabel(a.task)}, priority: ${a.task.priority}, status: ${a.task.status.replace('_', ' ')}`,
       );
     }
   }
 
   const content = lines.join('\n');
+  // weekStart/weekEnd hold the (possibly non-week) range bounds; see the model comment.
   return prisma.weeklyBriefing.create({
-    data: { weekStart, weekEnd, content },
-  });
-}
-
-/** Sends a stored briefing over the selected channels and updates its flags. */
-export async function sendBriefing(id: string, viaEmail: boolean, viaTeams: boolean) {
-  const briefing = await prisma.weeklyBriefing.findUnique({ where: { id } });
-  if (!briefing) {
-    throw Object.assign(new Error('Briefing not found'), { status: 404, expose: true });
-  }
-
-  const settings = await getSettings();
-  let sentViaEmail = briefing.sentViaEmail;
-  let sentViaTeams = briefing.sentViaTeams;
-
-  if (viaEmail) {
-    const list = settings.briefingDistributionList
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean);
-    if (list.length === 0) {
-      throw Object.assign(
-        new Error('The briefing distribution list is empty. Add recipients in Settings.'),
-        { status: 400, expose: true },
-      );
-    }
-    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:680px;">${marked.parse(briefing.content)}</div>`;
-    await sendEmail(list, `[Ascend Hub] Weekly briefing — ${fmtDate(briefing.weekStart)}`, html);
-    sentViaEmail = true;
-  }
-
-  if (viaTeams) {
-    await sendTeamsMessage(briefing.content);
-    sentViaTeams = true;
-  }
-
-  return prisma.weeklyBriefing.update({
-    where: { id },
-    data: { sentViaEmail, sentViaTeams, sentAt: new Date() },
+    data: { userId, weekStart: start, weekEnd: end, content },
   });
 }

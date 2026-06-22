@@ -10,6 +10,7 @@ import TaskDetail from './pages/TaskDetail';
 import MyWork from './pages/MyWork';
 import Capacity from './pages/Capacity';
 import Analytics from './pages/Analytics';
+import ClosedTasks from './pages/ClosedTasks';
 import Proposals from './pages/Proposals';
 import Briefings from './pages/Briefings';
 import Settings from './pages/Settings';
@@ -48,14 +49,10 @@ export default function App() {
         <Route path="/requests" element={<Navigate to="/tasks" replace />} />
         <Route path="/my-work" element={<MyWork />} />
         <Route path="/analytics" element={<Analytics />} />
-        <Route
-          path="/proposals"
-          element={
-            <RequireAdmin>
-              <Proposals />
-            </RequireAdmin>
-          }
-        />
+        <Route path="/closed" element={<ClosedTasks />} />
+        {/* Proposals is open to all members (was admin-only): the Salesforce-link
+            view is useful to everyone tracking proposal work, not just admins. */}
+        <Route path="/proposals" element={<Proposals />} />
         <Route path="/briefings" element={<Briefings />} />
         <Route
           path="/capacity"

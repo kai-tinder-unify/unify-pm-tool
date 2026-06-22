@@ -14,9 +14,23 @@ export const SETTING_KEYS = [
   'smtpPass',
   'smtpFrom',
   'teamsWebhookUrl',
+  // Per-category Teams webhooks. Each routes one class of notification to its own
+  // channel; a blank value falls back to teamsWebhookUrl (the default channel), so
+  // the multi-channel split is fully backward compatible with single-webhook setups.
+  'teamsWebhookAssignments',
+  'teamsWebhookPings',
+  'teamsWebhookDaily',
   'teamsPingEnabled',
   'teamsTaskJoinedEnabled',
   'briefingDistributionList',
+  // Capacity (advisory client-engagement view). The three level→hours mappings and
+  // the soft target are stored as strings (like every other setting) and parsed to
+  // numbers where used. They are configurable so the firm can re-tune the baseline
+  // without a code change.
+  'capacityHoursLow',
+  'capacityHoursMedium',
+  'capacityHoursHigh',
+  'capacitySoftTargetHours',
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -44,9 +58,20 @@ const DEFAULTS: Record<SettingKey, string> = {
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || 'Ascend Hub <noreply@unifyconsulting.com>',
   teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
+  // Blank by default: an empty category webhook means "use the default channel"
+  // (teamsWebhookUrl), preserving the prior single-channel behaviour out of the box.
+  teamsWebhookAssignments: '',
+  teamsWebhookPings: '',
+  teamsWebhookDaily: '',
   teamsPingEnabled: 'false',
   teamsTaskJoinedEnabled: 'false',
   briefingDistributionList: '',
+  // Default client-hours baseline per engagement level, and the soft reference
+  // line the Capacity page measures everyone against (40h). low<medium<high.
+  capacityHoursLow: '30',
+  capacityHoursMedium: '40',
+  capacityHoursHigh: '50',
+  capacitySoftTargetHours: '40',
 };
 
 /** Returns all settings, with env/defaults filling gaps for unset keys. */
