@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import { useFetch, useLabels } from '../hooks';
@@ -7,7 +7,6 @@ import { useToast } from '../context/ToastContext';
 import {
   PriorityBadge,
   StatusBadge,
-  WipPill,
   Spinner,
   ErrorNote,
   fmtDay,
@@ -18,7 +17,7 @@ import {
 } from '../components/ui';
 import TaskFormModal from '../components/TaskFormModal';
 import LogHoursModal from '../components/LogHoursModal';
-import type { Task, Assignment } from '../types';
+import type { Task, Assignment, Priority } from '../types';
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>();
@@ -31,10 +30,21 @@ export default function TaskDetail() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [hoursModal, setHoursModal] = useState<Assignment | null | 'new'>(null);
+  // When set, opens the Log-hours modal for a specific subtask (logging the current
+  // user's hours against that child task) rather than this top-level task.
+  const [subtaskHours, setSubtaskHours] = useState<Task | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [addingLeader, setAddingLeader] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [pinging, setPinging] = useState(false);
+  // Inline "add subtask" control state: the in-progress title text and an
+  // in-flight guard so a double-submit can't create two subtasks.
+  const [subtaskTitle, setSubtaskTitle] = useState('');
+  // Priority chosen for the next subtask added via the inline control. Subtasks are
+  // lightweight, so priority is the only field set at creation time; everything else
+  // is inherited (bucket/leader) or defaulted (status → not_started).
+  const [subtaskPriority, setSubtaskPriority] = useState<Priority>('medium');
+  const [addingSubtask, setAddingSubtask] = useState(false);
 
   // Distinct leaders from every task (plus this one's current value, so the
   // dropdown always has a matching option to show).
@@ -44,12 +54,26 @@ export default function TaskDetail() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [allTasks.data, task?.requestedBy]);
 
+  // Subtasks are managed inline under their parent and have no standalone page. If
+  // someone lands on a subtask URL directly (an old link, a stray bookmark), bounce
+  // them up to the parent where the subtask actually lives. Runs as an effect so we
+  // never call navigate() during render; `replace` keeps the dead URL out of history.
+  useEffect(() => {
+    if (task?.parentId) navigate(`/tasks/${task.parentId}`, { replace: true });
+  }, [task?.parentId, navigate]);
+
   if (loading) return <Spinner />;
   if (error) return <ErrorNote message={error} />;
   if (!task) return null;
+  // While the redirect effect above runs, render nothing rather than flash the
+  // (now unsupported) subtask detail layout.
+  if (task.parentId) return null;
 
   const myAssignment = task.assignments.find((a) => a.userId === user?.id) || null;
   const totalHours = task.assignments.reduce((s, a) => s + a.hoursLogged, 0);
+
+  // This task's subtasks (only ever populated on a top-level task).
+  const subtasks = task.subtasks ?? [];
 
   const updateTask = async (patch: Record<string, unknown>) => {
     try {
@@ -104,6 +128,49 @@ export default function TaskDetail() {
     }
   };
 
+  // Create a subtask under this task. Subtasks inherit the parent's bucket (the
+  // server also enforces this), carry the same requested-by leader for continuity,
+  // take the priority picked in the inline control, and start at the default
+  // not_started status. We reload afterward so the new subtask shows up below.
+  const addSubtask = async () => {
+    const title = subtaskTitle.trim();
+    if (!title) return;
+    setAddingSubtask(true);
+    try {
+      await api('/api/tasks', {
+        method: 'POST',
+        body: {
+          title,
+          requestedBy: task.requestedBy,
+          bucket: task.bucket,
+          priority: subtaskPriority,
+          parentId: task.id,
+        },
+      });
+      setSubtaskTitle('');
+      setSubtaskPriority('medium'); // reset to the default for the next add
+      toast.success('Subtask added');
+      reload();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAddingSubtask(false);
+    }
+  };
+
+  // Patch a single subtask in place (status or priority) from its inline row. Hits
+  // the same task PUT endpoint as the parent, just targeted at the child id, then
+  // reloads so the row and the board's subtask roll-up reflect the change. Kept
+  // toast-free: these are quick dropdown tweaks and a toast per change would be noisy.
+  const updateSubtask = async (subtaskId: string, patch: Record<string, unknown>) => {
+    try {
+      await api(`/api/tasks/${subtaskId}`, { method: 'PUT', body: patch });
+      reload();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const deleteAssignment = async (a: Assignment) => {
     try {
       await api(`/api/assignments/${a.id}`, { method: 'DELETE' });
@@ -130,9 +197,9 @@ export default function TaskDetail() {
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <PriorityBadge priority={task.priority} />
               <StatusBadge status={task.status} />
-              {task.isWip ? (
-                <WipPill />
-              ) : task.estimatedDueDate ? (
+              {/* Due date when present. WIP/ongoing tasks carry no due date, so nothing
+                  shows here — the yellow WIP badge was removed. */}
+              {task.estimatedDueDate ? (
                 <span className="mono-meta">due {fmtDay(task.estimatedDueDate)}</span>
               ) : null}
             </div>
@@ -173,7 +240,7 @@ export default function TaskDetail() {
             <option value="in_progress">In progress</option>
             <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
-            <option value="complete">Complete</option>
+            <option value="closed">Closed</option>
           </select>
         </div>
         <div>
@@ -384,12 +451,139 @@ export default function TaskDetail() {
         </div>
       </div>
 
+      {/* Subtasks — one level of child tasks. Only shown on a top-level task: a
+          subtask itself can't have children (the server rejects deeper nesting), and
+          hiding the empty section there keeps a subtask's page focused. */}
+      {!task.parentId && (
+        <div className="card">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+            <h2 className="section-title">
+              Subtasks{' '}
+              <span className="font-mono text-xs tabular-nums text-slate-500 ml-1">({subtasks.length})</span>
+            </h2>
+          </div>
+          <div className="px-6 py-4 space-y-4">
+            {subtasks.length === 0 ? (
+              <p className="text-[13px] text-slate-600 py-2 text-center">
+                No subtasks yet — break this work down below.
+              </p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {subtasks.map((s) => {
+                  // Active contributors = assignments with no end date, mirroring the
+                  // board card's "who's on it" cue.
+                  const contribs = s.assignments.filter((a) => !a.endDate).map((a) => a.user.name);
+                  // Hours roll up from every contributor's logged time (active or not),
+                  // matching how the parent task's total is computed above.
+                  const subHours = s.assignments.reduce((sum, a) => sum + a.hoursLogged, 0);
+                  // "Logged by" = whoever added the subtask. createdBy is always set
+                  // server-side; guard only against an older cached shape missing it.
+                  const loggedBy = s.createdBy?.name ?? 'Unknown';
+                  return (
+                    <li key={s.id} className="flex items-start justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        {/* Title is plain text now — subtasks have no standalone page;
+                            everything about them is edited inline on this row. */}
+                        <div className="font-medium text-[13px] text-ink truncate">{s.title}</div>
+                        {/* Meta line: logged by · entry date · contributors. */}
+                        <div className="text-xs text-muted mt-0.5 truncate">
+                          Logged by {loggedBy} · {fmtDay(s.submittedAt)}
+                          {contribs.length > 0 ? ` · ${contribs.join(', ')}` : ''}
+                        </div>
+                      </div>
+                      {/* Inline controls: hours total, priority + status selects, and a
+                          shortcut to log the current user's hours against this subtask. */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="mono-meta tabular-nums">{subHours}h</span>
+                        <select
+                          className="input !w-auto !py-1 text-xs"
+                          value={s.priority}
+                          onChange={(e) => updateSubtask(s.id, { priority: e.target.value })}
+                        >
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
+                        <select
+                          className="input !w-auto !py-1 text-xs"
+                          value={s.status}
+                          onChange={(e) => updateSubtask(s.id, { status: e.target.value })}
+                        >
+                          <option value="not_started">Not started</option>
+                          <option value="in_progress">In progress</option>
+                          <option value="paused">Paused</option>
+                          <option value="blocked">Blocked</option>
+                          <option value="closed">Closed</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="text-aqua-text text-[13px] font-medium px-2 py-1 rounded-md transition-colors hover:text-navy hover:bg-aqua/10 shrink-0"
+                          onClick={() => setSubtaskHours(s)}
+                        >
+                          Log hours
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {/* Inline add-subtask control: title + priority + button. Enter submits.
+                The new subtask inherits this task's bucket and leader (see addSubtask)
+                and takes the selected priority; status defaults to not_started. */}
+            <div className="flex gap-2 pt-1">
+              <input
+                className="input"
+                placeholder="Add a subtask…"
+                value={subtaskTitle}
+                onChange={(e) => setSubtaskTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addSubtask();
+                  }
+                }}
+              />
+              <select
+                className="input !w-auto shrink-0"
+                value={subtaskPriority}
+                onChange={(e) => setSubtaskPriority(e.target.value as Priority)}
+                aria-label="Subtask priority"
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+              <button
+                type="button"
+                className="btn-primary shrink-0"
+                onClick={addSubtask}
+                disabled={addingSubtask || !subtaskTitle.trim()}
+              >
+                {addingSubtask ? 'Adding…' : 'Add subtask'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editOpen && <TaskFormModal existing={task} onClose={() => setEditOpen(false)} onSaved={reload} />}
       {hoursModal && (
         <LogHoursModal
           task={task}
           existing={hoursModal === 'new' ? null : hoursModal}
           onClose={() => setHoursModal(null)}
+          onSaved={reload}
+        />
+      )}
+      {/* Log the current user's hours against a subtask. existing=null so the modal
+          upserts this user's own assignment on the child task; reloading the parent
+          refreshes the subtask's rolled-up hours total. */}
+      {subtaskHours && (
+        <LogHoursModal
+          task={subtaskHours}
+          existing={null}
+          onClose={() => setSubtaskHours(null)}
           onSaved={reload}
         />
       )}

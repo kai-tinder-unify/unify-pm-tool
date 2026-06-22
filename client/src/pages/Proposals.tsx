@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   in_progress: 'In progress',
   paused: 'Paused',
   blocked: 'Blocked',
-  complete: 'Complete',
+  closed: 'Closed',
 };
 
 /** Sum of every contributor's logged hours on a task, rounded to 0.1h. */
@@ -73,8 +73,9 @@ export default function Proposals() {
   );
 
   // Build + download the proposal↔opportunity mapping as CSV, entirely client-side
-  // (no server endpoint needed — the data is already loaded). "Completed" uses
-  // updatedAt for complete tasks, the same proxy the board uses for completion date.
+  // (no server endpoint needed — the data is already loaded). "Completed" uses the
+  // task's closedAt (the real terminal-close timestamp) for closed tasks, falling
+  // back to updatedAt if an older closed row predates closedAt being stamped.
   const downloadCsv = () => {
     const header = [
       'Title',
@@ -95,7 +96,7 @@ export default function Proposals() {
       STATUS_LABELS[t.status],
       t.bucket,
       fmtDay(t.submittedAt),
-      t.status === 'complete' ? fmtDate(t.updatedAt) : '',
+      t.status === 'closed' ? fmtDate(t.closedAt ?? t.updatedAt) : '',
       String(totalHours(t)),
       t.salesforceOpportunity || '',
       t.salesforceOpportunity ? 'yes' : 'no',

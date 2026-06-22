@@ -8,6 +8,22 @@ const router = Router();
 const taskInclude = {
   createdBy: { select: { id: true, name: true } },
   assignments: { include: { user: { select: { id: true, name: true } } } },
+  // One level of subtasks, each with their own contributors. Subtasks are a
+  // lightweight breakdown of the parent (e.g. a proposal split into slides) but are
+  // still backed by normal Task rows, so we pull:
+  //   - createdBy → the "logged by" attribution shown on each subtask row,
+  //   - assignments (+ the assigned user's id/name) → the per-contributor hours that
+  //     roll up into the subtask's hours total and the board's subtask-progress chip.
+  // submittedAt (the "entry date") is a scalar and comes back automatically. We order
+  // by it ascending so the breakdown reads in the order pieces were added. parentId
+  // is also scalar, so we don't need to (and shouldn't) recurse past this one level.
+  subtasks: {
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      assignments: { include: { user: { select: { id: true, name: true } } } },
+    },
+    orderBy: { submittedAt: 'asc' },
+  },
 } as const;
 
 /** Fires a Teams "joined a task" notification when someone is newly added as a contributor. */
@@ -31,12 +47,25 @@ function fireTaskJoined(
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { status, bucket, initiative } = req.query;
+    const { status, bucket, initiative, closedFrom, closedTo } = req.query;
+    // Optional closedAt range, used by the Closed-tasks reporting view to pull a
+    // single quarter's closed work. Both bounds are optional; when neither is
+    // present we add no closedAt constraint at all (so the board's normal fetch is
+    // unaffected). closedTo is treated as inclusive-to-end-of-day so a date-only
+    // bound (e.g. the last day of a quarter) still captures rows closed that day.
+    const closedRange: { gte?: Date; lte?: Date } = {};
+    if (closedFrom) closedRange.gte = new Date(String(closedFrom));
+    if (closedTo) {
+      const to = new Date(String(closedTo));
+      to.setHours(23, 59, 59, 999);
+      closedRange.lte = to;
+    }
     const tasks = await prisma.task.findMany({
       where: {
         ...(status ? { status: String(status) as any } : {}),
         ...(bucket ? { bucket: String(bucket) } : {}),
         ...(initiative ? { initiative: String(initiative) } : {}),
+        ...(closedRange.gte || closedRange.lte ? { closedAt: closedRange } : {}),
       },
       include: taskInclude,
       orderBy: { submittedAt: 'desc' },
@@ -51,9 +80,29 @@ router.post(
     const {
       title, description, requestedBy, submittedAt, status, priority, isWip,
       estimatedDueDate, targetStartDate, estimatedHours,
-      bucket, initiative, salesforceOpportunity,
+      bucket, initiative, salesforceOpportunity, parentId,
     } = req.body || {};
-    if (!title || !requestedBy || !bucket) {
+
+    // When this task is being created as a subtask, resolve the parent up front so
+    // we can (a) reject illegal nesting and (b) inherit the parent's bucket when the
+    // caller didn't supply one. We only need parentId + bucket off the parent.
+    let parentBucket: string | null = null;
+    if (parentId) {
+      const parent = await prisma.task.findUnique({
+        where: { id: String(parentId) },
+        select: { id: true, parentId: true, bucket: true },
+      });
+      if (!parent) throw httpError(400, 'Parent task not found');
+      // One level only: a subtask cannot itself have a parent. Rejecting here keeps
+      // the data model flat so the board/detail rendering never has to recurse.
+      if (parent.parentId) throw httpError(400, 'Cannot nest a subtask under another subtask');
+      parentBucket = parent.bucket;
+    }
+
+    // Subtasks inherit the parent's bucket when one isn't explicitly provided; only
+    // top-level tasks (no parent) still require a bucket from the caller.
+    const effectiveBucket = bucket || parentBucket;
+    if (!title || !requestedBy || !effectiveBucket) {
       throw httpError(400, 'Title, requested by, and bucket are required');
     }
 
@@ -65,16 +114,24 @@ router.post(
         requestedBy: String(requestedBy).trim(),
         submittedAt: submittedAt ? new Date(submittedAt) : undefined,
         status: status || 'not_started',
+        // If a task is created already closed (unusual — e.g. an import or a direct
+        // status), stamp the close time now so it buckets into the right quarter and
+        // shows a date in the Closed-tasks report. The PUT path covers the normal
+        // close-it-later flow.
+        closedAt: status === 'closed' ? new Date() : null,
         priority: priority || 'medium',
         isWip: wip,
         estimatedDueDate: !wip && estimatedDueDate ? new Date(estimatedDueDate) : null,
         targetStartDate: targetStartDate ? new Date(targetStartDate) : null,
         estimatedHours: estimatedHours != null && estimatedHours !== '' ? Number(estimatedHours) : null,
-        bucket: String(bucket),
+        bucket: String(effectiveBucket),
         initiative: initiative ? String(initiative) : null,
         // Salesforce opportunity link/ID (optional) — trim so a pasted value with
         // stray whitespace still matches cleanly; an empty string stores as null.
         salesforceOpportunity: salesforceOpportunity ? String(salesforceOpportunity).trim() : null,
+        // Link to the parent task when creating a subtask (null = top-level task).
+        // Already validated above to exist and to itself be top-level.
+        parentId: parentId ? String(parentId) : null,
         createdById: req.user!.id,
       },
       include: taskInclude,
@@ -106,7 +163,26 @@ router.put(
     if (description !== undefined) data.description = description ? String(description) : null;
     if (requestedBy !== undefined) data.requestedBy = String(requestedBy).trim();
     if (submittedAt !== undefined) data.submittedAt = new Date(submittedAt);
-    if (status !== undefined) data.status = status;
+    if (status !== undefined) {
+      data.status = status;
+      // Adjust the terminal-close timestamp ONLY on an actual transition, so the
+      // recorded close time stays the FIRST time the task was closed. That date
+      // drives the Closed-tasks report and its calendar-quarter bucketing, so a
+      // later edit (or a no-op re-save) that still carries status === 'closed' must
+      // not push it forward. One extra read is worth keeping the close date honest.
+      const current = await prisma.task.findUnique({
+        where: { id: req.params.id },
+        select: { status: true },
+      });
+      const wasClosed = current?.status === 'closed';
+      const willBeClosed = status === 'closed';
+      if (!wasClosed && willBeClosed) {
+        data.closedAt = new Date(); // newly closing → record when it closed
+      } else if (wasClosed && !willBeClosed) {
+        data.closedAt = null; // reopening → clear the close time
+      }
+      // closed-ness unchanged → leave closedAt exactly as it was
+    }
     if (priority !== undefined) data.priority = priority;
     if (isWip !== undefined) {
       data.isWip = Boolean(isWip);

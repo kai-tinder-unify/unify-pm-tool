@@ -1,9 +1,11 @@
-import { useSearchParams } from 'react-router-dom';
+import { Fragment, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line,
   CartesianGrid, Legend,
 } from 'recharts';
 import { useFetch, useLabels } from '../hooks';
+import { useAuth } from '../context/AuthContext';
 import { Spinner, ErrorNote, EmptyState } from '../components/ui';
 
 // Command Center light palette: aqua, navy, green, amber, red, violet.
@@ -24,7 +26,6 @@ interface CapacityData {
   hoursByBucket: { name: string; hours: number }[];
   hoursByInitiative: { name: string; hours: number }[];
   weeklyTrend: { week: string; hours: number }[];
-  estVsActual: { task: string; estimated: number; actual: number }[];
 }
 
 interface FlowData {
@@ -34,11 +35,24 @@ interface FlowData {
   priorityDistribution: Record<string, number>;
   wipTasks: { id: string; title: string; daysOpen: number }[];
   supportedLeaders: { name: string; tasks: number; hours: number; buckets: string[]; initiatives: string[] }[];
+  // Per-contributor performance (admin-only section). taskCount/hours summarize the
+  // member's work in the current filter window; tasks lists each one so we can link to it.
+  memberPerformance: { id: string; name: string; taskCount: number; hours: number; tasks: { id: string; title: string }[] }[];
 }
 
 export default function Analytics() {
   const [params, setParams] = useSearchParams();
   const { buckets, initiatives } = useLabels();
+  const { isAdmin } = useAuth();
+  // Which member rows are expanded to reveal their task list. Kept as a Set so several
+  // people can be open at once; collapsed by default so the table stays compact.
+  const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
+  const toggleMember = (id: string) =>
+    setExpandedMembers((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   const qs = params.toString();
   const capacity = useFetch<CapacityData>(`/api/analytics/capacity${qs ? `?${qs}` : ''}`);
@@ -112,22 +126,6 @@ export default function Analytics() {
         </ChartCard>
         <ChartCard title="Hours by initiative">
           <Donut data={cap.hoursByInitiative} />
-        </ChartCard>
-        <ChartCard title="Estimated vs. actual hours" wide>
-          {cap.estVsActual.length === 0 ? <EmptyState>No tasks with estimates</EmptyState> : (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={cap.estVsActual}>
-                <XAxis dataKey="task" stroke="#565f67" fontSize={11} interval={0} angle={-12} textAnchor="end" height={60} />
-                <YAxis stroke="#565f67" fontSize={12} />
-                {/* Hover cursor as a faint navy wash (was white-alpha, invisible on light). */}
-                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(20,49,79,0.05)' }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                {/* Estimated = neutral slate bar; actual = brand aqua so the comparison pops. */}
-                <Bar dataKey="estimated" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="actual" fill="#1cc4bc" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
         </ChartCard>
       </div>
 
@@ -230,6 +228,82 @@ export default function Analytics() {
         </table>
         {fl.supportedLeaders.length === 0 && <EmptyState>No tasks match the current filters</EmptyState>}
       </div>
+
+      {/* d. Member performance — admin-only. Per-contributor tasks/hours plus a link
+          to each task they worked on, so an admin can see who did what in the window.
+          Hidden for non-admins since per-person performance is sensitive. */}
+      {isAdmin && (
+        <>
+          <SectionHeading className="pt-2">Member performance</SectionHeading>
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="th pl-5">Member</th>
+                  <th className="th">Tasks</th>
+                  <th className="th pr-5">Hours logged</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {fl.memberPerformance.map((m) => {
+                  const isOpen = expandedMembers.has(m.id);
+                  return (
+                    <Fragment key={m.id}>
+                      <tr className="row-hover">
+                        <td className="px-4 py-3 pl-5">
+                          {/* Click the name to expand/collapse this member's task list,
+                              rather than always rendering a long inline list of links. */}
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 font-medium text-ink transition-colors hover:text-aqua-text"
+                            onClick={() => toggleMember(m.id)}
+                            aria-expanded={isOpen}
+                          >
+                            {/* Chevron rotates from ▸ to ▾ to signal the open state. */}
+                            <span
+                              className={`text-muted transition-transform duration-100 ${isOpen ? 'rotate-90' : ''}`}
+                              aria-hidden="true"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M6 4l4 4-4 4" />
+                              </svg>
+                            </span>
+                            {m.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs tabular-nums">{m.taskCount}</td>
+                        <td className="px-4 py-3 pr-5 font-mono text-xs tabular-nums">{m.hours}</td>
+                      </tr>
+                      {isOpen && (
+                        // Expanded detail row: the member's tasks, each linking to its
+                        // detail page so an admin can drill in.
+                        <tr className="bg-paper-deep/40">
+                          <td colSpan={3} className="px-4 py-3 pl-5">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                              {m.tasks.map((t) => (
+                                <Link
+                                  key={t.id}
+                                  to={`/tasks/${t.id}`}
+                                  className="text-xs text-aqua-text transition-colors hover:text-navy"
+                                >
+                                  {t.title}
+                                </Link>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+            {fl.memberPerformance.length === 0 && (
+              <EmptyState>No logged hours match the current filters</EmptyState>
+            )}
+          </div>
+        </>
+      )}
 
     </div>
   );

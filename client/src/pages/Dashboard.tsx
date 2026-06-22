@@ -3,7 +3,7 @@ import { useFetch } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { api } from '../api';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDate, fmtDay } from '../components/ui';
+import { PriorityBadge, StatusBadge, Spinner, ErrorNote, EmptyState, fmtDate, fmtDay } from '../components/ui';
 import type { Task } from '../types';
 import { useState } from 'react';
 
@@ -26,12 +26,12 @@ export default function Dashboard() {
   const soon = new Date();
   soon.setDate(soon.getDate() + 7);
   const dueSoon = allTasks
-    .filter((t) => t.status !== 'complete' && !t.isWip && t.estimatedDueDate && new Date(t.estimatedDueDate) <= soon)
+    .filter((t) => t.status !== 'closed' && !t.isWip && t.estimatedDueDate && new Date(t.estimatedDueDate) <= soon)
     .sort((a, b) => new Date(a.estimatedDueDate!).getTime() - new Date(b.estimatedDueDate!).getTime());
-  const wipTasks = allTasks.filter((t) => t.isWip && t.status !== 'complete');
+  const wipTasks = allTasks.filter((t) => t.isWip && t.status !== 'closed');
   const myTasks = allTasks.filter(
     (t) =>
-      t.status !== 'complete' &&
+      t.status !== 'closed' &&
       t.assignments.some((a) => a.userId === user?.id && !a.endDate),
   );
   const recentActivity = [...allTasks]
@@ -118,12 +118,12 @@ export default function Dashboard() {
               <h3 className="micro-title mb-2 mt-5">WIP tasks</h3>
               <ul>
                 {wipTasks.slice(0, 4).map((t) => (
-                  <li key={t.id} className="list-row py-2 flex items-center justify-between gap-2 text-sm">
-                    {/* Title link hovers to navy (was accent-hover bright-aqua dark-theme hover). */}
-                    <Link to={`/tasks/${t.id}`} className="truncate transition-colors hover:text-navy">
+                  <li key={t.id} className="list-row py-2 text-sm">
+                    {/* Title link hovers to navy. The section header already says these
+                        are WIP/ongoing, so no per-row yellow badge is needed. */}
+                    <Link to={`/tasks/${t.id}`} className="block truncate transition-colors hover:text-navy">
                       {t.title}
                     </Link>
-                    <WipPill />
                   </li>
                 ))}
               </ul>
@@ -146,7 +146,9 @@ export default function Dashboard() {
                   </Link>
                   <span className="flex items-center gap-2 shrink-0">
                     <StatusBadge status={t.status} />
-                    {t.isWip ? <WipPill /> : t.estimatedDueDate ? (
+                    {/* Due date when present; WIP/ongoing tasks have none (yellow WIP
+                        badge removed). */}
+                    {t.estimatedDueDate ? (
                       <span className="mono-meta">{fmtDay(t.estimatedDueDate)}</span>
                     ) : null}
                   </span>

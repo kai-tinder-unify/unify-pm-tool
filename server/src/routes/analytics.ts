@@ -65,9 +65,9 @@ router.get(
     monthStart.setHours(0, 0, 0, 0);
 
     const [openTasks, tasksInProgress, completedThisWeek, monthAssignments] = await Promise.all([
-      prisma.task.count({ where: { status: { not: 'complete' } } }),
+      prisma.task.count({ where: { status: { not: 'closed' } } }),
       prisma.task.count({ where: { status: 'in_progress' } }),
-      prisma.task.count({ where: { status: 'complete', updatedAt: { gte: weekAgo } } }),
+      prisma.task.count({ where: { status: 'closed', updatedAt: { gte: weekAgo } } }),
       prisma.taskAssignment.findMany({ where: { updatedAt: { gte: monthStart } } }),
     ]);
 
@@ -99,18 +99,6 @@ router.get(
       byWeek.set(wk, (byWeek.get(wk) || 0) + a.hoursLogged);
     }
 
-    // Estimated vs actual per task (only where an estimate exists)
-    const taskIds = [...new Set(assignments.map((a) => a.taskId))];
-    const tasks = await prisma.task.findMany({
-      where: { id: { in: taskIds }, estimatedHours: { not: null } },
-      include: { assignments: true },
-    });
-    const estVsActual = tasks.map((t) => ({
-      task: t.title,
-      estimated: t.estimatedHours,
-      actual: Math.round(t.assignments.reduce((s, a) => s + a.hoursLogged, 0) * 10) / 10,
-    }));
-
     const toSorted = (m: Map<string, number>) =>
       [...m.entries()]
         .map(([name, hours]) => ({ name, hours: Math.round(hours * 10) / 10 }))
@@ -122,7 +110,6 @@ router.get(
       weeklyTrend: [...byWeek.entries()]
         .map(([week, hours]) => ({ week, hours: Math.round(hours * 10) / 10 }))
         .sort((a, b) => a.week.localeCompare(b.week)),
-      estVsActual,
     });
   }),
 );
@@ -147,9 +134,9 @@ router.get(
     const byStatus: Record<string, number> = {};
     for (const t of tasks) byStatus[t.status] = (byStatus[t.status] || 0) + 1;
 
-    // Avg intake-to-completion by bucket (complete tasks; last update as proxy for completion)
+    // Avg intake-to-completion by bucket (closed tasks; last update as proxy for completion)
     const cycleByBucket = new Map<string, number[]>();
-    for (const t of tasks.filter((t) => t.status === 'complete')) {
+    for (const t of tasks.filter((t) => t.status === 'closed')) {
       const days = (t.updatedAt.getTime() - t.submittedAt.getTime()) / (24 * 60 * 60 * 1000);
       if (!cycleByBucket.has(t.bucket)) cycleByBucket.set(t.bucket, []);
       cycleByBucket.get(t.bucket)!.push(Math.max(0, days));
@@ -161,19 +148,19 @@ router.get(
 
     // Tasks completed per week
     const completedPerWeek = new Map<string, number>();
-    for (const t of tasks.filter((t) => t.status === 'complete')) {
+    for (const t of tasks.filter((t) => t.status === 'closed')) {
       const wk = weekKey(t.updatedAt);
       completedPerWeek.set(wk, (completedPerWeek.get(wk) || 0) + 1);
     }
 
     // Priority distribution of open tasks
-    const openTasks = tasks.filter((t) => t.status !== 'complete');
+    const openTasks = tasks.filter((t) => t.status !== 'closed');
     const priorityDist: Record<string, number> = { high: 0, medium: 0, low: 0 };
     for (const t of openTasks) priorityDist[t.priority] = (priorityDist[t.priority] || 0) + 1;
 
     // WIP tasks and age
     const wipTasks = tasks
-      .filter((t) => t.isWip && t.status !== 'complete')
+      .filter((t) => t.isWip && t.status !== 'closed')
       .map((t) => ({
         id: t.id,
         title: t.title,
@@ -203,6 +190,39 @@ router.get(
       }))
       .sort((a, b) => b.hours - a.hours);
 
+    // Per-member performance (admin view): for each contributor, how many distinct
+    // tasks they touched, the hours they logged, and the task list itself (id+title)
+    // so the UI can link straight to each task. Built from the same filtered `tasks`
+    // set as everything else here, so it honors the date/bucket/initiative filters.
+    // We dedupe tasks per member via a Map keyed by task id (a member may have a
+    // single assignment per task, but keying by id keeps it robust regardless).
+    const members = new Map<
+      string,
+      { id: string; name: string; hours: number; tasks: Map<string, string> }
+    >();
+    for (const t of tasks) {
+      for (const a of t.assignments) {
+        if (!members.has(a.user.id)) {
+          members.set(a.user.id, { id: a.user.id, name: a.user.name, hours: 0, tasks: new Map() });
+        }
+        const m = members.get(a.user.id)!;
+        m.hours += a.hoursLogged;
+        m.tasks.set(t.id, t.title);
+      }
+    }
+    const memberPerformance = [...members.values()]
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        taskCount: m.tasks.size,
+        hours: Math.round(m.hours * 10) / 10,
+        // Most recent first isn't meaningful here (no per-task date on the entry), so
+        // we leave tasks in insertion order — the order they appear in the task list.
+        tasks: [...m.tasks.entries()].map(([id, title]) => ({ id, title })),
+      }))
+      // Rank by hours invested, the headline performance figure.
+      .sort((a, b) => b.hours - a.hours);
+
     res.json({
       tasksByStatus: byStatus,
       avgCycleByBucket,
@@ -212,6 +232,7 @@ router.get(
       priorityDistribution: priorityDist,
       wipTasks,
       supportedLeaders,
+      memberPerformance,
     });
   }),
 );

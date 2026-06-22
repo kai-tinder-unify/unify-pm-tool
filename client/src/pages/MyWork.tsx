@@ -4,7 +4,7 @@ import { api } from '../api';
 import { useFetch } from '../hooks';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { PriorityBadge, StatusBadge, WipPill, Spinner, ErrorNote, EmptyState, fmtDay } from '../components/ui';
+import { PriorityBadge, StatusBadge, Spinner, ErrorNote, EmptyState, fmtDay } from '../components/ui';
 import LogHoursModal from '../components/LogHoursModal';
 import type { Task, Assignment } from '../types';
 
@@ -24,7 +24,7 @@ export default function MyWork() {
   const mine = allTasks.filter((t) =>
     t.assignments.some((a) => a.userId === user?.id && !a.endDate),
   );
-  const open = mine.filter((t) => t.status !== 'complete');
+  const open = mine.filter((t) => t.status !== 'closed');
   const wip = open.filter((t) => t.isWip);
   const dated = open
     .filter((t) => !t.isWip)
@@ -82,9 +82,9 @@ export default function MyWork() {
               {task.title}
             </Link>
             <PriorityBadge priority={task.priority} />
-            {task.isWip ? (
-              <WipPill />
-            ) : task.estimatedDueDate ? (
+            {/* Due date when present; WIP/ongoing tasks have none, so nothing shows
+                here (the yellow WIP badge was removed). */}
+            {task.estimatedDueDate ? (
               <span className="mono-meta">due {fmtDay(task.estimatedDueDate)}</span>
             ) : null}
           </div>
@@ -113,7 +113,7 @@ export default function MyWork() {
             <option value="in_progress">In progress</option>
             <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
-            <option value="complete">Complete</option>
+            <option value="closed">Closed</option>
           </select>
         </div>
       </div>

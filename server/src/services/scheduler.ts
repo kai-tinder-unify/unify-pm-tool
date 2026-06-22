@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import { prisma } from '../prisma';
 import { getSettings } from './settings';
 import { sendCheckIns } from './checkin';
-import { generateBriefing, sendBriefing } from './briefing';
+import { generateBriefing } from './briefing';
 
 const TZ = process.env.SCHEDULER_TIMEZONE || 'America/Los_Angeles';
 
@@ -67,20 +67,21 @@ export async function runSchedulerTick() {
       briefingLastRunDay !== dayKey
     ) {
       briefingLastRunDay = dayKey;
-      console.log('[scheduler] Generating weekly briefing...');
-      const briefing = await generateBriefing();
-      try {
-        const hasList = settings.briefingDistributionList.trim().length > 0;
-        const hasTeams = settings.teamsWebhookUrl.trim().length > 0;
-        if (hasList || hasTeams) {
-          await sendBriefing(briefing.id, hasList, hasTeams);
-          console.log('[scheduler] Weekly briefing sent.');
-        } else {
-          console.log('[scheduler] Briefing generated as draft (no delivery channels configured).');
-        }
-      } catch (err) {
-        console.error('[scheduler] Briefing send failed:', err);
+      // Briefings are personal and in-app only. Auto-generate a trailing-7-days briefing
+      // for each ACTIVE user who logged/updated hours in the past week, so everyone with
+      // recent activity gets a fresh one without having to remember. Users with no
+      // activity get nothing (no empty briefings); they can still generate on demand.
+      console.log('[scheduler] Generating weekly per-person briefings...');
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const recent = await prisma.taskAssignment.findMany({
+        where: { updatedAt: { gte: weekAgo }, user: { isActive: true } },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      for (const { userId } of recent) {
+        await generateBriefing(userId);
       }
+      console.log(`[scheduler] Generated ${recent.length} weekly briefing(s).`);
     }
   }
 }

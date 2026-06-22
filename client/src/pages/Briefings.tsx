@@ -2,44 +2,35 @@ import { useState } from 'react';
 import { marked } from 'marked';
 import { api } from '../api';
 import { useFetch } from '../hooks';
-import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Spinner, ErrorNote, EmptyState, Modal, fmtDate } from '../components/ui';
+import { Spinner, ErrorNote, EmptyState, Modal, fmtDate, fmtDay } from '../components/ui';
 import type { Briefing } from '../types';
 
+// YYYY-MM-DD for `daysAgo` days before today (0 = today). Used to pre-fill the range
+// pickers with the trailing week — the most common briefing window and the one the
+// scheduled job uses.
+function isoDaysAgo(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function Briefings() {
-  const { isAdmin } = useAuth();
   const toast = useToast();
   const { data, loading, error, reload } = useFetch<Briefing[]>('/api/briefings');
   const [selected, setSelected] = useState<Briefing | null>(null);
-  const [sendModal, setSendModal] = useState<Briefing | null>(null);
-  const [viaEmail, setViaEmail] = useState(true);
-  const [viaTeams, setViaTeams] = useState(false);
+  // Date range for an on-demand briefing, defaulting to the trailing 7 days.
+  const [from, setFrom] = useState(() => isoDaysAgo(7));
+  const [to, setTo] = useState(() => isoDaysAgo(0));
   const [busy, setBusy] = useState(false);
 
+  // Generate a briefing for the chosen range. The server summarizes activity in the
+  // window (per-person hours + tasks) and stores it; we reload to show it in the list.
   const generate = async () => {
     setBusy(true);
     try {
-      await api('/api/briefings/generate', { method: 'POST' });
+      await api('/api/briefings/generate', { method: 'POST', body: { from, to } });
       toast.success('Briefing generated');
-      reload();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const send = async () => {
-    if (!sendModal) return;
-    setBusy(true);
-    try {
-      await api(`/api/briefings/${sendModal.id}/send`, {
-        method: 'POST',
-        body: { viaEmail, viaTeams },
-      });
-      toast.success('Briefing sent');
-      setSendModal(null);
       reload();
     } catch (e: any) {
       toast.error(e.message);
@@ -53,101 +44,60 @@ export default function Briefings() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="page-title">Weekly briefings</h1>
-        {isAdmin && (
-          <button className="btn-primary" onClick={generate} disabled={busy}>
-            {busy ? 'Working…' : 'Generate now'}
-          </button>
-        )}
+      <div>
+        <h1 className="page-title">Your briefings</h1>
+        <p className="text-[13px] text-muted mt-1">
+          A snapshot of the hours you logged and the tasks you worked on over a date range — generated
+          automatically each week and on demand. Only you can see your briefings.
+        </p>
+      </div>
+
+      {/* Generate control: pick a date range (defaults to the trailing week) and build
+          your own briefing. Available to every user — briefings are personal. */}
+      <div className="card px-4 py-3 flex flex-wrap items-end gap-3 text-sm">
+        <div>
+          <label className="label">From</label>
+          {/* max={to} keeps the start on/before the end so the range can't invert. */}
+          <input type="date" className="input !w-auto" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">To</label>
+          <input type="date" className="input !w-auto" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+        </div>
+        <button className="btn-primary" onClick={generate} disabled={busy || !from || !to}>
+          {busy ? 'Generating…' : 'Generate briefing'}
+        </button>
       </div>
 
       {(data || []).length === 0 ? (
         <div className="card p-8">
-          <EmptyState>No briefings yet{isAdmin ? ' — generate the first one' : ''}</EmptyState>
+          <EmptyState>No briefings yet — generate your first one above</EmptyState>
         </div>
       ) : (
         <div className="space-y-2">
           {(data || []).map((b) => (
             <div key={b.id} className="card card-hover px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
               <button
-                // Title is primary text (text-ink is navy on light) with an aqua-text -> navy hover.
+                // Title is primary text (navy on light) with an aqua-text -> navy hover.
                 className="text-left font-medium text-ink transition-colors hover:text-aqua-text"
                 onClick={() => setSelected(b)}
               >
-                Week of {fmtDate(b.weekStart)} – {fmtDate(b.weekEnd)}
+                {/* Range bounds are UTC calendar dates → format with fmtDay (UTC). */}
+                {fmtDay(b.weekStart)} – {fmtDay(b.weekEnd)}
               </button>
-              <div className="flex items-center gap-2 text-xs">
-                {!b.sentViaEmail && !b.sentViaTeams && (
-                  // Draft = neutral chip (tint + muted text + hairline border) on light paper.
-                  <span className="pill bg-paper-deep text-muted border-line">
-                    <span className="pill-dot bg-[#C2C2C2]" />
-                    Draft
-                  </span>
-                )}
-                {b.sentViaEmail && (
-                  // Email sent = success chip using the shared success trio.
-                  <span className="pill bg-success-bg text-success border-success-border">
-                    <span className="pill-dot bg-success" />
-                    Email sent
-                  </span>
-                )}
-                {b.sentViaTeams && (
-                  // Teams sent = aqua (in-progress/info) chip; aqua-text keeps small text AA-safe.
-                  <span className="pill bg-aqua-light text-aqua-text border-aqua/30">
-                    <span className="pill-dot bg-aqua" />
-                    Teams sent
-                  </span>
-                )}
-                <span className="mono-meta">generated {fmtDate(b.generatedAt)}</span>
-                {isAdmin && (
-                  <button
-                    className="btn-secondary !py-1 !px-3"
-                    onClick={() => {
-                      setSendModal(b);
-                      setViaEmail(true);
-                      setViaTeams(false);
-                    }}
-                  >
-                    Send
-                  </button>
-                )}
-              </div>
+              <span className="mono-meta">generated {fmtDate(b.generatedAt)}</span>
             </div>
           ))}
         </div>
       )}
 
       {selected && (
-        <Modal title={`Week of ${fmtDate(selected.weekStart)}`} onClose={() => setSelected(null)} wide>
+        <Modal title={`${fmtDay(selected.weekStart)} – ${fmtDay(selected.weekEnd)}`} onClose={() => setSelected(null)} wide>
           <div
             // Rendered markdown viewer: h2 = navy heading, h3 = aqua-text subheading (both legible on the white modal).
             className="prose-briefing text-sm leading-relaxed [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-navy [&_h3]:text-aqua-text [&_h3]:font-medium [&_h3]:mt-4 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5"
             dangerouslySetInnerHTML={{ __html: marked.parse(selected.content) as string }}
           />
-        </Modal>
-      )}
-
-      {sendModal && (
-        <Modal title="Send briefing" onClose={() => setSendModal(null)}>
-          <div className="space-y-3 text-sm">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={viaEmail} onChange={(e) => setViaEmail(e.target.checked)} />
-              Email distribution list
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={viaTeams} onChange={(e) => setViaTeams(e.target.checked)} />
-              Teams channel webhook
-            </label>
-            <div className="flex justify-end gap-2 pt-3">
-              <button className="btn-secondary" onClick={() => setSendModal(null)}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={send} disabled={busy || (!viaEmail && !viaTeams)}>
-                {busy ? 'Sending…' : 'Send'}
-              </button>
-            </div>
-          </div>
         </Modal>
       )}
     </div>

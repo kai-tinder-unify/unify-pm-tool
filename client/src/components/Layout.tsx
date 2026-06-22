@@ -68,6 +68,14 @@ const icons: Record<string, ReactNode> = {
       <path d="M2 4.5l6 4.5 6-4.5" strokeLinejoin="round" />
     </svg>
   ),
+  // Closed tasks (reporting): a checkmark-in-circle, reading as "done/wrapped up",
+  // distinct from the mywork checkmark (which sits on a plain circle).
+  closed: (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <circle cx="8" cy="8" r="6.5" />
+      <path d="M5.2 8.1l2 2 3.6-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   settings: (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
       <circle cx="8" cy="8" r="2.2" />
@@ -99,7 +107,8 @@ const sections: {
     items: [
       { to: '/capacity', label: 'Capacity', icon: 'capacity', adminOnly: true },
       { to: '/analytics', label: 'Analytics', icon: 'analytics' },
-      { to: '/proposals', label: 'Proposals', icon: 'proposals', adminOnly: true },
+      { to: '/closed', label: 'Closed tasks', icon: 'closed' },
+      { to: '/proposals', label: 'Proposals', icon: 'proposals' },
       { to: '/briefings', label: 'Briefings', icon: 'briefings' },
     ],
   },

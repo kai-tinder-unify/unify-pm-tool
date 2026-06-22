@@ -36,6 +36,14 @@ function stamp(s: string): Date {
   return new Date(`${s}T12:00:00Z`);
 }
 
+// The current TaskStatus enum values. `complete` was renamed to `closed`, so a
+// dataset still carrying the legacy value is mapped forward here; everything else
+// passes through unchanged. Returns a value the Prisma client accepts directly.
+type TaskStatusValue = 'not_started' | 'in_progress' | 'blocked' | 'closed' | 'paused';
+function normalizeStatus(status: SeedTask['status']): TaskStatusValue {
+  return status === 'complete' ? 'closed' : status;
+}
+
 // --- Shape of the seed dataset (see build-seed-data.py for the sheet -> JSON map) ---
 type SeedUser = { name: string; email: string; role: 'admin' | 'member'; pingTime: string | null };
 type SeedAssignment = {
@@ -52,7 +60,10 @@ type SeedTask = {
   requestedBy: string;
   bucket: string;
   initiative: string | null;
-  status: 'not_started' | 'in_progress' | 'blocked' | 'complete' | 'paused';
+  // `complete` is the legacy terminal value still present in older datasets; it is
+  // normalized to `closed` at load time (see normalizeStatus) so both old and new
+  // seed-data files load against the renamed enum.
+  status: 'not_started' | 'in_progress' | 'blocked' | 'closed' | 'complete' | 'paused';
   priority: 'high' | 'medium' | 'low';
   isWip: boolean;
   submittedAt: string;
@@ -141,6 +152,8 @@ async function main() {
 
   for (const t of data.tasks) {
     const createdById = emailToId.get(t.createdByEmail)!;
+    // Map any legacy `complete` value forward to `closed` before persisting.
+    const status = normalizeStatus(t.status);
 
     const task = await prisma.task.create({
       data: {
@@ -148,7 +161,7 @@ async function main() {
         description: t.description,
         requestedBy: t.requestedBy,
         submittedAt: calDay(t.submittedAt)!,
-        status: t.status,
+        status,
         priority: t.priority,
         isWip: t.isWip,
         estimatedDueDate: calDay(t.estimatedDueDate),
@@ -156,6 +169,13 @@ async function main() {
         estimatedHours: t.estimatedHours,
         bucket: t.bucket,
         initiative: t.initiative,
+        // Closed tasks carry a closedAt so the Closed board column and the
+        // Closed-tasks report have a real terminal date. The dataset has no
+        // dedicated "closed on" field, so we reuse updatedAt — which for closed
+        // rows already represents the real completion/last-activity date — and
+        // stamp it at NOON UTC like updatedAt so the calendar day resolves
+        // correctly in US timezones. Non-closed rows leave closedAt null.
+        closedAt: status === 'closed' ? stamp(t.updatedAt) : null,
         createdById,
         // createdAt drives "WIP age" — anchor it to intake, not seed time.
         createdAt: calDay(t.submittedAt)!,
