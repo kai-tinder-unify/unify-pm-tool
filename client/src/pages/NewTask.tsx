@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useFetch, useLabels } from '../hooks';
 import { useToast } from '../context/ToastContext';
 import { StatusBadge } from '../components/ui';
+import Combobox from '../components/Combobox';
 import type { Task } from '../types';
 
 type DueMode = 'unset' | 'date' | 'wip';
@@ -52,7 +53,6 @@ export default function NewTask() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [requestedBy, setRequestedBy] = useState('');
-  const [addingLeader, setAddingLeader] = useState(false);
   const [submittedAt, setSubmittedAt] = useState(new Date().toISOString().slice(0, 10));
   const [bucket, setBucket] = useState('');
   const [initiative, setInitiative] = useState('');
@@ -61,11 +61,6 @@ export default function NewTask() {
   const [dueMode, setDueMode] = useState<DueMode>('unset');
   const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
-
-  // No prior leaders to choose from → fall back to free text entry.
-  useEffect(() => {
-    if (!tasks.loading && leaders.length === 0) setAddingLeader(true);
-  }, [tasks.loading, leaders.length]);
 
   // Live duplicate check: surface existing tasks whose titles look similar so two
   // people don't open the same work twice. Non-blocking — just a heads-up.
@@ -172,52 +167,14 @@ export default function NewTask() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Leader Supported *</label>
-            {addingLeader ? (
-              <div className="flex gap-2">
-                <input
-                  className="input"
-                  value={requestedBy}
-                  onChange={(e) => setRequestedBy(e.target.value)}
-                  placeholder="e.g. Sandra Liu"
-                  autoFocus
-                  required
-                />
-                {leaders.length > 0 && (
-                  <button
-                    type="button"
-                    className="btn-secondary shrink-0"
-                    onClick={() => {
-                      setAddingLeader(false);
-                      setRequestedBy('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
-            ) : (
-              <select
-                className="input"
-                value={requestedBy}
-                onChange={(e) => {
-                  if (e.target.value === '__new__') {
-                    setAddingLeader(true);
-                    setRequestedBy('');
-                  } else {
-                    setRequestedBy(e.target.value);
-                  }
-                }}
-                required
-              >
-                <option value="">Select…</option>
-                {leaders.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-                <option value="__new__">+ Add new leader…</option>
-              </select>
-            )}
+            <Combobox
+              value={requestedBy}
+              onChange={setRequestedBy}
+              options={leaders}
+              placeholder="Search or type a leader…"
+              required
+              newLabel={(v) => `Add “${v}” as a new leader`}
+            />
           </div>
           <div>
             <label className="label">Date requested</label>

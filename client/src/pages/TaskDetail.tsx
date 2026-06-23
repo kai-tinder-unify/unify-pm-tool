@@ -17,6 +17,7 @@ import {
 } from '../components/ui';
 import TaskFormModal from '../components/TaskFormModal';
 import LogHoursModal from '../components/LogHoursModal';
+import Combobox from '../components/Combobox';
 import type { Task, Assignment, Priority } from '../types';
 
 export default function TaskDetail() {
@@ -34,7 +35,7 @@ export default function TaskDetail() {
   // user's hours against that child task) rather than this top-level task.
   const [subtaskHours, setSubtaskHours] = useState<Task | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [addingLeader, setAddingLeader] = useState(false);
+  const [leaderDraft, setLeaderDraft] = useState('');
   const [attaching, setAttaching] = useState(false);
   const [pinging, setPinging] = useState(false);
   // Inline "add subtask" control state: the in-progress title text and an
@@ -53,6 +54,12 @@ export default function TaskDetail() {
     if (task?.requestedBy) set.add(task.requestedBy);
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [allTasks.data, task?.requestedBy]);
+
+  // Keep the inline leader picker's draft in sync with the saved value (after a
+  // save + refetch, or when switching tasks). The picker commits on select/blur.
+  useEffect(() => {
+    if (task?.requestedBy != null) setLeaderDraft(task.requestedBy);
+  }, [task?.requestedBy]);
 
   // Subtasks are managed inline under their parent and have no standalone page. If
   // someone lands on a subtask URL directly (an old link, a stray bookmark), bounce
@@ -278,42 +285,17 @@ export default function TaskDetail() {
         </div>
         <div>
           <label className="label">Leader Supported</label>
-          {addingLeader ? (
-            <div className="flex gap-2">
-              <input
-                className="input"
-                autoFocus
-                placeholder="e.g. Sandra Liu"
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v && v !== task.requestedBy) updateTask({ requestedBy: v });
-                  setAddingLeader(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur();
-                }}
-              />
-              <button type="button" className="btn-secondary shrink-0" onClick={() => setAddingLeader(false)}>
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <select
-              className="input"
-              value={task.requestedBy}
-              onChange={(e) => {
-                if (e.target.value === '__new__') setAddingLeader(true);
-                else if (e.target.value !== task.requestedBy) updateTask({ requestedBy: e.target.value });
-              }}
-            >
-              {leaders.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-              <option value="__new__">+ Add new leader…</option>
-            </select>
-          )}
+          <Combobox
+            value={leaderDraft}
+            onChange={setLeaderDraft}
+            options={leaders}
+            placeholder="Search or type a leader…"
+            newLabel={(v) => `Add “${v}” as a new leader`}
+            onCommit={(v) => {
+              const t = v.trim();
+              if (t && t !== task.requestedBy) updateTask({ requestedBy: t });
+            }}
+          />
         </div>
         <div>
           <label className="label">Entry date</label>
