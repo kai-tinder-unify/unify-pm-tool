@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../prisma';
 import { asyncHandler, requireAdmin, httpError } from '../middleware/auth';
-import { notifyTeams, sendTeamsEvent } from '../services/notifications';
+import { sendTeamsEvent } from '../services/notifications';
 
 const router = Router();
 
@@ -25,24 +25,6 @@ const taskInclude = {
     orderBy: { submittedAt: 'asc' },
   },
 } as const;
-
-/** Fires a Teams "joined a task" notification when someone is newly added as a contributor. */
-function fireTaskJoined(
-  task: { id: string; title: string; bucket: string; priority: string; requestedBy: string },
-  member: string,
-) {
-  void notifyTeams({
-    type: 'task_joined',
-    task: {
-      id: task.id,
-      title: task.title,
-      bucket: task.bucket,
-      priority: task.priority,
-      requestedBy: task.requestedBy,
-    },
-    member,
-  });
-}
 
 router.get(
   '/',
@@ -244,13 +226,6 @@ router.post(
     const hours = hoursLogged != null && hoursLogged !== '' ? Number(hoursLogged) : 0;
     if (Number.isNaN(hours) || hours < 0) throw httpError(400, 'Hours must be a non-negative number');
 
-    // Detect a first-time join (vs. updating an existing assignment) so the "joined a
-    // task" Teams card posts only once, not on every hours update.
-    const existing = await prisma.taskAssignment.findUnique({
-      where: { taskId_userId: { taskId: task.id, userId: req.user!.id } },
-      select: { id: true },
-    });
-
     const assignment = await prisma.taskAssignment.upsert({
       where: { taskId_userId: { taskId: task.id, userId: req.user!.id } },
       update: {
@@ -270,7 +245,6 @@ router.post(
       include: { user: { select: { id: true, name: true } } },
     });
 
-    if (!existing) fireTaskJoined(task, req.user!.name);
     res.status(201).json(assignment);
   }),
 );

@@ -10,8 +10,9 @@ const APP_URL = process.env.APP_URL || 'http://localhost:5173';
  *   1. add a variant to this union,
  *   2. add a matching builder to BUILDERS and a toggle key to ENABLED_BY
  *      (null = no toggle, always sent when a webhook is configured),
- *   3. register any new toggle key in services/settings.ts (SETTING_KEYS + DEFAULTS),
- *   4. call notifyTeams(...) (auto, fire-and-forget) or sendTeamsEvent(...) (manual,
+ *   3. add its channel to WEBHOOK_BY (which category webhook it posts to),
+ *   4. register any new keys in services/settings.ts (SETTING_KEYS + DEFAULTS),
+ *   5. call notifyTeams(...) (auto, fire-and-forget) or sendTeamsEvent(...) (manual,
  *      throws on failure) wherever the event happens.
  *
  * `email`/`*Email` fields carry the person's UPN so the card can @mention them (a real
@@ -21,16 +22,9 @@ export type TeamsEvent =
   | {
       type: 'daily_checkin';
       date: string;
-      people: {
-        name: string;
-        email: string | null;
-        tasks: { title: string; requestedBy: string; priority: string }[];
-      }[];
-    }
-  | {
-      type: 'task_joined';
-      task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
-      member: string;
+      // One card per person: the recipient and just their own active tasks.
+      person: { name: string; email: string | null };
+      tasks: { title: string; requestedBy: string; priority: string }[];
     }
   | {
       type: 'task_ping';
@@ -44,19 +38,16 @@ type EventType = TeamsEvent['type'];
 /** Setting that must be 'true' for each event to post; null = always (manual actions). */
 const ENABLED_BY: Record<EventType, SettingKey | null> = {
   daily_checkin: 'teamsPingEnabled',
-  task_joined: 'teamsTaskJoinedEnabled',
   task_ping: null,
 };
 
 /**
- * Per-event category webhook setting. Each event posts to its category's channel when
- * that setting is non-blank, else falls back to the default channel (teamsWebhookUrl).
- * This is how a single firm can split assignments / pings / the daily digest across
- * separate Teams channels while staying backward compatible with a single webhook.
+ * Per-event category webhook setting. Each event posts to its category's channel; a
+ * blank value means that notification type is disabled. This is how the firm splits
+ * the daily reminder and manual pings across separate Teams channels.
  */
 const WEBHOOK_BY: Record<EventType, SettingKey> = {
   daily_checkin: 'teamsWebhookDaily',
-  task_joined: 'teamsWebhookAssignments',
   task_ping: 'teamsWebhookPings',
 };
 
@@ -64,35 +55,23 @@ const WEBHOOK_BY: Record<EventType, SettingKey> = {
 const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => AdaptiveCard } = {
   daily_checkin: (e) => {
     const entities: Mention[] = [];
+    const who = mentionOrName(e.person.name, e.person.email, entities);
+    const lead =
+      e.tasks.length === 1
+        ? `${who} — here is your active task for today:`
+        : `${who} — here are your ${e.tasks.length} active tasks for today:`;
     const body: unknown[] = [
       heading(`🗓️ Daily check-in — ${e.date}`),
-      textBlock(
-        `${e.people.length} team member${e.people.length === 1 ? '' : 's'} with active work today.`,
-        { isSubtle: true, wrap: true },
+      textBlock(lead, { wrap: true }),
+      ...e.tasks.map((t) =>
+        textBlock(`• ${t.title} — for ${t.requestedBy} (${titleCase(t.priority)} priority)`, {
+          wrap: true,
+          spacing: 'Small',
+        }),
       ),
     ];
-    for (const p of e.people) {
-      body.push(textBlock(mentionOrName(p.name, p.email, entities), { wrap: true, spacing: 'Medium', separator: true }));
-      for (const t of p.tasks) {
-        body.push(textBlock(`• ${t.title} — for ${t.requestedBy} (${t.priority} priority)`, { wrap: true, spacing: 'None' }));
-      }
-    }
     return card(body, [openButton('Open My Work', `${APP_URL}/my-work`)], entities);
   },
-
-  task_joined: (e) =>
-    card(
-      [
-        heading('👤 Joined a task'),
-        textBlock(`**${e.member}** is now contributing to **${e.task.title}**.`, { wrap: true }),
-        facts([
-          ['Requested by', e.task.requestedBy],
-          ['Bucket', e.task.bucket],
-          ['Priority', titleCase(e.task.priority)],
-        ]),
-      ],
-      [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
-    ),
 
   task_ping: (e) => {
     const entities: Mention[] = [];
@@ -129,9 +108,8 @@ export async function notifyTeams(event: TeamsEvent): Promise<boolean> {
     const settings = await getSettings();
     const toggle = ENABLED_BY[event.type];
     if (toggle && settings[toggle] !== 'true') return false;
-    // Route to this event's category channel. Each notification type has its own
-    // webhook now (no shared default channel); a blank category URL means this
-    // notification is simply disabled, so we no-op (fire-and-forget: never throw).
+    // Route to this event's category channel. A blank category URL means this
+    // notification is disabled, so we no-op (fire-and-forget: never throw).
     const url = settings[WEBHOOK_BY[event.type]];
     if (!url) return false;
     await sendTeamsCard(buildCard(event), url);

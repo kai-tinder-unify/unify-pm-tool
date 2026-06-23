@@ -28,11 +28,9 @@ export default function Settings() {
       briefingEnabled: data.briefingEnabled || 'true',
       // Per-category Teams webhooks — the only Teams config now (the shared default
       // channel field was removed). A blank value disables that notification type.
-      teamsWebhookAssignments: data.teamsWebhookAssignments || '',
       teamsWebhookPings: data.teamsWebhookPings || '',
       teamsWebhookDaily: data.teamsWebhookDaily || '',
       teamsPingEnabled: data.teamsPingEnabled || 'false',
-      teamsTaskJoinedEnabled: data.teamsTaskJoinedEnabled || 'false',
       // Capacity (advisory): level→hours mapping and the soft reference line.
       capacityHoursLow: data.capacityHoursLow || '30',
       capacityHoursMedium: data.capacityHoursMedium || '40',
@@ -239,17 +237,6 @@ export default function Settings() {
 
         <div className="grid gap-4">
           <div>
-            <label className="label">Assignments channel webhook</label>
-            <input
-              className="input"
-              value={form.teamsWebhookAssignments || ''}
-              onChange={(e) => set('teamsWebhookAssignments', e.target.value)}
-            />
-            <p className="text-xs text-muted mt-1">
-              Cards for someone joining a task. Leave blank to disable.
-            </p>
-          </div>
-          <div>
             <label className="label">Reminder pings channel webhook</label>
             <input
               className="input"
@@ -281,14 +268,6 @@ export default function Settings() {
               onChange={(e) => set('teamsPingEnabled', e.target.checked ? 'true' : 'false')}
             />
             Post the daily check-in digest to Teams
-          </label>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.teamsTaskJoinedEnabled === 'true'}
-              onChange={(e) => set('teamsTaskJoinedEnabled', e.target.checked ? 'true' : 'false')}
-            />
-            Post a card when someone joins a task
           </label>
         </div>
       </section>
