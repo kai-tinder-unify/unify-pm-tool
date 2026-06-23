@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../api';
 import { useToast } from '../context/ToastContext';
-import { useLabels } from '../hooks';
+import { useFetch, useLabels } from '../hooks';
 import { Modal, toInputDate } from './ui';
+import Combobox from './Combobox';
 import type { Task } from '../types';
 
 type DueMode = 'unset' | 'date' | 'wip';
@@ -19,6 +20,12 @@ export default function TaskFormModal({
 }) {
   const toast = useToast();
   const { buckets, initiatives } = useLabels();
+  const tasks = useFetch<Task[]>('/api/tasks');
+  // Distinct leaders from existing tasks for the searchable picker (free text still allowed).
+  const leaders = useMemo(
+    () => [...new Set((tasks.data || []).map((t) => t.requestedBy).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [tasks.data],
+  );
 
   const [title, setTitle] = useState(existing.title);
   const [description, setDescription] = useState(existing.description || '');
@@ -88,7 +95,13 @@ export default function TaskFormModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Leader Supported *</label>
-            <input className="input" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} />
+            <Combobox
+              value={requestedBy}
+              onChange={setRequestedBy}
+              options={leaders}
+              placeholder="Search or type a leader…"
+              newLabel={(v) => `Add “${v}” as a new leader`}
+            />
           </div>
           <div>
             <label className="label">Date requested</label>
