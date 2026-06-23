@@ -69,8 +69,8 @@ export async function sendTeamsCard(card: AdaptiveCard, url?: string) {
 
 /**
  * Sends a verification message to every configured Teams channel. The default
- * single-channel webhook was retired in favor of the three per-category webhooks
- * (assignments / pings / daily digest), so the test posts to whichever of those are
+ * single-channel webhook was retired in favor of the per-category webhooks
+ * (manual pings / daily digest), so the test posts to whichever of those are
  * set — deduped, since several categories can legitimately point at the same channel.
  * Throws (expose:true) when none are configured so the admin who clicked "Send test
  * message" gets clear feedback rather than a silent no-op.
@@ -78,7 +78,6 @@ export async function sendTeamsCard(card: AdaptiveCard, url?: string) {
 export async function sendTestTeamsMessage() {
   const settings = await getSettings();
   const configured = [
-    settings.teamsWebhookAssignments,
     settings.teamsWebhookPings,
     settings.teamsWebhookDaily,
   ]

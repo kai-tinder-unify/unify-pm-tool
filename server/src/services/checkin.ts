@@ -18,8 +18,9 @@ type ActiveAssignment = Awaited<ReturnType<typeof activeAssignmentsFor>>[number]
  *   omit for a manual "send pings now" run covering everyone eligible.
  * - Skips deactivated users, users with no active in-progress assignments,
  *   and users pinged within the past 20 hours (double-fire guard, any channel).
- * - Email is per-user; Teams is a single channel digest of everyone pinged this run.
- *   The two channels are independent — Teams posts even if SMTP is unconfigured.
+ * - Both channels are per-user: each eligible person gets their own consolidated email
+ *   and their own Teams card (@mentioning them). The two channels are independent —
+ *   Teams posts even if SMTP is unconfigured.
  * Returns a summary of what was sent.
  */
 export async function sendCheckIns(userIds?: string[]) {
@@ -93,34 +94,34 @@ export async function sendCheckIns(userIds?: string[]) {
     }
   }
 
-  // --- Channel 2: single Teams digest of everyone pinged this run ---
-  let teamsPosted = false;
-  if (eligible.length > 0) {
-    teamsPosted = await notifyTeams({
+  // --- Channel 2: one Teams card per person (each @mentioning them) ---
+  const teamsSent = new Set<string>();
+  for (const { user, assignments } of eligible) {
+    const posted = await notifyTeams({
       type: 'daily_checkin',
       date: today,
-      people: eligible.map(({ user, assignments }) => ({
-        name: user.name,
-        email: user.email,
-        tasks: assignments.map((a) => ({
-          title: a.task.title,
-          requestedBy: a.task.requestedBy,
-          priority: a.task.priority,
-        })),
+      person: { name: user.name, email: user.email },
+      tasks: assignments.map((a) => ({
+        title: a.task.title,
+        requestedBy: a.task.requestedBy,
+        priority: a.task.priority,
       })),
     });
-    if (teamsPosted) {
-      await prisma.checkIn.createMany({
-        data: eligible.flatMap(({ user, assignments }) =>
+    if (posted) teamsSent.add(user.id);
+  }
+  if (teamsSent.size > 0) {
+    await prisma.checkIn.createMany({
+      data: eligible
+        .filter(({ user }) => teamsSent.has(user.id))
+        .flatMap(({ user, assignments }) =>
           assignments.map((a) => ({ taskId: a.taskId, userId: user.id, channel: 'teams' })),
         ),
-      });
-    }
+    });
   }
 
   // Finalize results: a user counts as pinged if any channel delivered.
   for (const { user, assignments } of eligible) {
-    if (emailSent.has(user.id) || teamsPosted) {
+    if (emailSent.has(user.id) || teamsSent.has(user.id)) {
       results.push({ user: user.name, sent: true, taskCount: assignments.length });
     } else {
       results.push({

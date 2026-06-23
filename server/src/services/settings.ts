@@ -17,11 +17,9 @@ export const SETTING_KEYS = [
   // Per-category Teams webhooks. Each routes one class of notification to its own
   // channel; a blank value falls back to teamsWebhookUrl (the default channel), so
   // the multi-channel split is fully backward compatible with single-webhook setups.
-  'teamsWebhookAssignments',
   'teamsWebhookPings',
   'teamsWebhookDaily',
   'teamsPingEnabled',
-  'teamsTaskJoinedEnabled',
   'briefingDistributionList',
   // Capacity (advisory client-engagement view). The three level→hours mappings and
   // the soft target are stored as strings (like every other setting) and parsed to
@@ -60,11 +58,9 @@ const DEFAULTS: Record<SettingKey, string> = {
   teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
   // Blank by default: an empty category webhook means "use the default channel"
   // (teamsWebhookUrl), preserving the prior single-channel behaviour out of the box.
-  teamsWebhookAssignments: '',
   teamsWebhookPings: '',
   teamsWebhookDaily: '',
   teamsPingEnabled: 'false',
-  teamsTaskJoinedEnabled: 'false',
   briefingDistributionList: '',
   // Default client-hours baseline per engagement level, and the soft reference
   // line the Capacity page measures everyone against (40h). low<medium<high.

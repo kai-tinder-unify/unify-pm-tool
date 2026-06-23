@@ -110,11 +110,9 @@ export interface Settings {
   // Per-category Teams webhooks; a blank value falls back to teamsWebhookUrl (default
   // channel). Lets assignments / reminder pings / the daily digest post to their own
   // channels. Backward compatible with single-webhook setups.
-  teamsWebhookAssignments?: string;
   teamsWebhookPings?: string;
   teamsWebhookDaily?: string;
   teamsPingEnabled?: string;
-  teamsTaskJoinedEnabled?: string;
   briefingDistributionList?: string;
   // Capacity (advisory): level→client-hours mapping and the soft 40h reference line.
   // Stored as strings like every other setting; parsed to numbers where used.
