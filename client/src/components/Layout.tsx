@@ -105,7 +105,7 @@ const sections: {
   {
     header: 'Insights',
     items: [
-      { to: '/capacity', label: 'Capacity', icon: 'capacity', adminOnly: true },
+      { to: '/capacity', label: 'Capacity', icon: 'capacity' },
       { to: '/analytics', label: 'Analytics', icon: 'analytics' },
       { to: '/closed', label: 'Closed tasks', icon: 'closed' },
       { to: '/proposals', label: 'Proposals', icon: 'proposals' },

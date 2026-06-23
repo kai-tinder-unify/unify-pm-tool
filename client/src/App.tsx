@@ -54,14 +54,9 @@ export default function App() {
             view is useful to everyone tracking proposal work, not just admins. */}
         <Route path="/proposals" element={<Proposals />} />
         <Route path="/briefings" element={<Briefings />} />
-        <Route
-          path="/capacity"
-          element={
-            <RequireAdmin>
-              <Capacity />
-            </RequireAdmin>
-          }
-        />
+        {/* Capacity is open to all members: admins get the full team view; members
+            see only their own "My week" + capacity box (gated inside the page). */}
+        <Route path="/capacity" element={<Capacity />} />
         <Route
           path="/settings"
           element={
