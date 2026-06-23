@@ -62,8 +62,12 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const weekStart = resolveWeekStart(req.query.weekStart);
+    // Admins get the whole team's ratings (the team capacity view); members get only
+    // their own row — they see just their own box, and we don't ship other people's
+    // self-reported engagement levels to a non-admin browser.
+    const isAdmin = req.user!.role === 'admin';
     const rows = await prisma.weeklyCapacity.findMany({
-      where: { weekStart },
+      where: { weekStart, ...(isAdmin ? {} : { userId: req.user!.id }) },
       include: { user: { select: { id: true, name: true } } },
     });
     // Echo back the resolved (canonical) weekStart so the client can confirm which

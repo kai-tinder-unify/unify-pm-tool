@@ -15,7 +15,16 @@ router.get(
   asyncHandler(async (req, res) => {
     const settings = await getSettings();
     if (req.user!.role !== 'admin') {
-      return res.json({ buckets: settings.buckets, initiatives: settings.initiatives });
+      return res.json({
+        buckets: settings.buckets,
+        initiatives: settings.initiatives,
+        // Capacity-hours config is non-sensitive and the member capacity view needs it
+        // so a member's bar reflects the firm's configured baseline (not just defaults).
+        capacityHoursLow: settings.capacityHoursLow,
+        capacityHoursMedium: settings.capacityHoursMedium,
+        capacityHoursHigh: settings.capacityHoursHigh,
+        capacitySoftTargetHours: settings.capacitySoftTargetHours,
+      });
     }
     // Never expose the SMTP password value itself, just whether it is set
     const { smtpPass, ...rest } = settings;

@@ -43,7 +43,7 @@ interface Row {
 }
 
 export default function Capacity() {
-  const { user: me } = useAuth();
+  const { user: me, isAdmin } = useAuth();
   const toast = useToast();
   const { users } = useUsers();
   const tasksReq = useFetch<Task[]>('/api/tasks');
@@ -121,6 +121,8 @@ export default function Capacity() {
 
   // My own current-week level, for the self-rating control's active state.
   const myLevel = me ? levelByUser.get(me.id) ?? null : null;
+  // My own computed row, for the members-only capacity box (non-admins see just this).
+  const myRow = me ? rows.find((r) => r.user.id === me.id) ?? null : null;
 
   /**
    * Set the logged-in user's engagement level for the current week, then reload the
@@ -201,6 +203,10 @@ export default function Capacity() {
         </div>
       )}
 
+      {/* Team-wide capacity (the KPI figures, full roster, and "who has room") is
+          admin-only. Members see just their own box — the !isAdmin branch below. */}
+      {isAdmin && (
+        <>
       {/* Summary figures */}
       <div className="grid grid-cols-3 gap-4">
         <div className="card px-5 py-4">
@@ -284,6 +290,16 @@ export default function Capacity() {
           </ol>
         )}
       </section>
+        </>
+      )}
+
+      {/* Members see only their own capacity box; the "My week" control sits above. */}
+      {!isAdmin &&
+        (myRow ? (
+          <MemberCard row={myRow} softTarget={softTarget} />
+        ) : (
+          <EmptyState>Set your week above to see your capacity here.</EmptyState>
+        ))}
 
       <p className="text-xs text-slate-600">
         Client hours are a self-reported baseline (Low {hoursFor.low}h · Medium {hoursFor.medium}h · High{' '}

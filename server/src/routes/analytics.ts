@@ -119,6 +119,9 @@ router.get(
   '/flow',
   asyncHandler(async (req, res) => {
     const f = parseFilters(req.query as Record<string, unknown>);
+    // Per-member performance is admin-only; non-admins get an empty list. The page
+    // also hides that section, but we don't ship the sensitive per-person data at all.
+    const isAdmin = req.user!.role === 'admin';
 
     const tasks = await prisma.task.findMany({
       where: {
@@ -232,7 +235,7 @@ router.get(
       priorityDistribution: priorityDist,
       wipTasks,
       supportedLeaders,
-      memberPerformance,
+      memberPerformance: isAdmin ? memberPerformance : [],
     });
   }),
 );
