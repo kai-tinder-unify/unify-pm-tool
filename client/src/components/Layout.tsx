@@ -156,8 +156,11 @@ export default function Layout() {
     navigate('/login');
   };
 
+  // Shell is fixed to the viewport height so the sidebar and header stay put and only
+  // <main> scrolls; overflow-hidden stops tall page content from growing the whole
+  // shell (which previously pushed the sidebar's Profile / Sign out far down the page).
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Sidebar — intentionally stays dark navy in the new light "Command Center" brand. */}
       <aside className="w-60 shrink-0 bg-navy border-r border-line flex flex-col">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
@@ -180,7 +183,7 @@ export default function Layout() {
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        <nav className="flex-1 min-h-0 px-3 py-4 space-y-5 overflow-y-auto">
           {sections.map((section, i) => {
             const items = section.items.filter((item) => !item.adminOnly || isAdmin);
             if (items.length === 0) return null;
@@ -253,7 +256,7 @@ export default function Layout() {
             </span>
           )}
         </header>
-        <main className="flex-1 px-8 py-7 overflow-auto">
+        <main className="flex-1 min-h-0 px-8 py-7 overflow-auto">
           <Outlet />
         </main>
       </div>
