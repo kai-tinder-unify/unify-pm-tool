@@ -30,6 +30,7 @@ export default function Settings() {
       // channel field was removed). A blank value disables that notification type.
       teamsWebhookPings: data.teamsWebhookPings || '',
       teamsWebhookDaily: data.teamsWebhookDaily || '',
+      teamsWebhookTaskCreated: data.teamsWebhookTaskCreated || '',
       teamsPingEnabled: data.teamsPingEnabled || 'false',
       // Capacity (advisory): level→hours mapping and the soft reference line.
       capacityHoursLow: data.capacityHoursLow || '30',
@@ -256,6 +257,17 @@ export default function Settings() {
             />
             <p className="text-xs text-muted mt-1">
               The daily check-in digest. Leave blank to disable.
+            </p>
+          </div>
+          <div>
+            <label className="label">New task channel webhook</label>
+            <input
+              className="input"
+              value={form.teamsWebhookTaskCreated || ''}
+              onChange={(e) => set('teamsWebhookTaskCreated', e.target.value)}
+            />
+            <p className="text-xs text-muted mt-1">
+              Announces each newly created task (subtasks excluded). Leave blank to disable.
             </p>
           </div>
         </div>

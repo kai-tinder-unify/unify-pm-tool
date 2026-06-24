@@ -80,6 +80,7 @@ export async function sendTestTeamsMessage() {
   const configured = [
     settings.teamsWebhookPings,
     settings.teamsWebhookDaily,
+    settings.teamsWebhookTaskCreated,
   ]
     .map((u) => u.trim())
     .filter(Boolean);
