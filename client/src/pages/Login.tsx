@@ -49,7 +49,7 @@ export default function Login() {
           {/* Eyebrow: aqua-text (AA-safe deep aqua) replaces the old gold accent. */}
           <div className="text-aqua-text text-[10px] font-semibold tracking-[0.18em] uppercase">Unify Consulting</div>
           {/* Title on the light page now uses navy instead of white. */}
-          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-navy mt-1">Ascend Task Hub</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.02em] text-navy mt-1">Ascend Command Center</h1>
         </div>
         <form onSubmit={submit} className="card shadow-raised p-7 space-y-4">
           <div>

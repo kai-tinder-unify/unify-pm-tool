@@ -109,11 +109,11 @@ export default function ClosedTasks() {
   /**
    * Build + download the currently-filtered rows as a CSV, entirely client-side
    * (no server export endpoint). Columns match the spec: Title, Bucket, Requested
-   * by, Contributors, Closed date, Quarter. The closed date/quarter come from
+   * by, Contributors, Completed date, Quarter. The completed date/quarter come from
    * closedAt (falling back to updatedAt for any pre-closedAt row, same as the board).
    */
   const downloadCsv = () => {
-    const header = ['Title', 'Bucket', 'Requested by', 'Contributors', 'Closed date', 'Quarter'];
+    const header = ['Title', 'Bucket', 'Requested by', 'Contributors', 'Completed date', 'Quarter'];
     const body = rows.map((t) => {
       const closed = t.closedAt ?? t.updatedAt;
       return [
@@ -141,7 +141,7 @@ export default function ClosedTasks() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="page-title">Closed tasks</h1>
+          <h1 className="page-title">Completed tasks</h1>
           <p className="text-[13px] text-muted mt-1">
             Work wrapped up by quarter — filter and export for reporting
           </p>
@@ -222,7 +222,7 @@ export default function ClosedTasks() {
                 <th className="th pl-5">Task</th>
                 <th className="th">Contributors</th>
                 <th className="th">Bucket</th>
-                <th className="th">Closed</th>
+                <th className="th">Completed</th>
                 <th className="th pr-5">Quarter</th>
               </tr>
             </thead>

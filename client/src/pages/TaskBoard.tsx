@@ -66,7 +66,7 @@ const COLUMNS: { status: TaskStatus; label: string; dot: string }[] = [
   { status: 'paused', label: 'Paused', dot: 'bg-violet-400' },
   { status: 'blocked', label: 'Blocked', dot: 'bg-red-400' },
   // Closed → success green dot, matching the StatusBadge "closed" trio.
-  { status: 'closed', label: 'Closed', dot: 'bg-success' },
+  { status: 'closed', label: 'Completed', dot: 'bg-success' },
 ];
 
 const priorityBorder: Record<string, string> = {

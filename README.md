@@ -1,4 +1,4 @@
-# Unify Ascend Task Hub
+# Unify Ascend Command Center
 
 Internal web application for Unify Consulting's Ascend team: task intake and tracking, multi-contributor time logging, automated PM check-ins, and analytics.
 

@@ -113,7 +113,7 @@ export default function MyWork() {
             <option value="in_progress">In progress</option>
             <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
-            <option value="closed">Closed</option>
+            <option value="closed">Completed</option>
           </select>
         </div>
       </div>

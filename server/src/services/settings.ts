@@ -54,7 +54,7 @@ const DEFAULTS: Record<SettingKey, string> = {
   smtpPort: process.env.SMTP_PORT || '587',
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
-  smtpFrom: process.env.SMTP_FROM || 'Ascend Hub <noreply@unifyconsulting.com>',
+  smtpFrom: process.env.SMTP_FROM || 'Ascend Command Center <noreply@unifyconsulting.com>',
   teamsWebhookUrl: process.env.TEAMS_WEBHOOK_URL || '',
   // Blank by default: an empty category webhook means "use the default channel"
   // (teamsWebhookUrl), preserving the prior single-channel behaviour out of the box.

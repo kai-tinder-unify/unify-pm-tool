@@ -91,7 +91,7 @@ export async function sendTestTeamsMessage() {
     );
   }
   const text =
-    '✅ Test message from **Unify Ascend Task Hub** — your Teams webhook is configured correctly.';
+    '✅ Test message from **Unify Ascend Command Center** — your Teams webhook is configured correctly.';
   // Post to each distinct channel so the admin sees the test land everywhere it should.
   for (const url of unique) {
     await sendTeamsMessage(text, url);

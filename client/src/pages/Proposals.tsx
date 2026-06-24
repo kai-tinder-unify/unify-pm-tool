@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   in_progress: 'In progress',
   paused: 'Paused',
   blocked: 'Blocked',
-  closed: 'Closed',
+  closed: 'Completed',
 };
 
 /** Sum of every contributor's logged hours on a task, rounded to 0.1h. */

@@ -98,7 +98,7 @@ function loadSeedData(): { data: SeedData; source: string } {
 
 async function main() {
   const { data, source } = loadSeedData();
-  console.log(`Seeding Unify Ascend Task Hub from ${source}...`);
+  console.log(`Seeding Unify Ascend Command Center from ${source}...`);
 
   // --- AppSettings (buckets/initiatives kept; ping + briefing config preserved) ---
   // upsert so re-running never clobbers values an admin may have changed in the UI.
@@ -113,7 +113,7 @@ async function main() {
     smtpHost: '',
     smtpPort: '587',
     smtpUser: '',
-    smtpFrom: 'Ascend Hub <noreply@unifyconsulting.com>',
+    smtpFrom: 'Ascend Command Center <noreply@unifyconsulting.com>',
     teamsWebhookUrl: '',
     briefingDistributionList: '',
   };
