@@ -29,7 +29,7 @@ export async function sendEmail(to: string | string[], subject: string, html: st
 export async function sendTestEmail(to: string) {
   await sendEmail(
     to,
-    '[Ascend Hub] Test email',
-    '<p>This is a test email from <strong>Unify Ascend Task Hub</strong>. Your SMTP configuration works.</p>',
+    '[Ascend Command Center] Test email',
+    '<p>This is a test email from <strong>Unify Ascend Command Center</strong>. Your SMTP configuration works.</p>',
   );
 }

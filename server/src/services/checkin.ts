@@ -83,7 +83,7 @@ export async function sendCheckIns(userIds?: string[]) {
       </div>`;
 
     try {
-      await sendEmail(user.email, `[Ascend Hub] Daily check-in — ${today}`, html);
+      await sendEmail(user.email, `[Ascend Command Center] Daily check-in — ${today}`, html);
       // One CheckIn row per task referenced, even though the email is consolidated
       await prisma.checkIn.createMany({
         data: assignments.map((a) => ({ taskId: a.taskId, userId: user.id, channel: 'email' })),

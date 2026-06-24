@@ -247,7 +247,7 @@ export default function TaskDetail() {
             <option value="in_progress">In progress</option>
             <option value="paused">Paused</option>
             <option value="blocked">Blocked</option>
-            <option value="closed">Closed</option>
+            <option value="closed">Completed</option>
           </select>
         </div>
         <div>
@@ -495,7 +495,7 @@ export default function TaskDetail() {
                           <option value="in_progress">In progress</option>
                           <option value="paused">Paused</option>
                           <option value="blocked">Blocked</option>
-                          <option value="closed">Closed</option>
+                          <option value="closed">Completed</option>
                         </select>
                         <button
                           type="button"

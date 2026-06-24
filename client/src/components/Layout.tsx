@@ -107,7 +107,7 @@ const sections: {
     items: [
       { to: '/capacity', label: 'Capacity', icon: 'capacity' },
       { to: '/analytics', label: 'Analytics', icon: 'analytics' },
-      { to: '/closed', label: 'Closed tasks', icon: 'closed' },
+      { to: '/closed', label: 'Completed tasks', icon: 'closed' },
       { to: '/proposals', label: 'Proposals', icon: 'proposals' },
       { to: '/briefings', label: 'Briefings', icon: 'briefings' },
     ],
@@ -177,7 +177,7 @@ export default function Layout() {
           </div>
           <div className="min-w-0">
             {/* Wordmark stays white on the dark navy sidebar. */}
-            <div className="text-white font-semibold text-[14px] tracking-[-0.01em] leading-tight">Ascend Hub</div>
+            <div className="text-white font-semibold text-[14px] tracking-[-0.01em] leading-tight">Ascend Command Center</div>
             {/* "Unify" eyebrow: aqua-mid tints the brand line without bright small text. */}
             <div className="text-aqua-mid text-[10px] font-semibold tracking-[0.16em] uppercase">Unify</div>
           </div>
@@ -247,7 +247,7 @@ export default function Layout() {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Top header is LIGHT: translucent white over the paper background, with a hairline divider. */}
         <header className="h-12 shrink-0 sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-line flex items-center gap-2 px-8">
-          <span className="text-[13px] text-muted">Unify Ascend Task Hub</span>
+          <span className="text-[13px] text-muted">Unify Ascend Command Center</span>
           {isAdmin && (
             // Admin pill on the light header: on-brand aqua tint with AA-safe aqua text and an aqua dot.
             <span className="pill bg-aqua-light text-aqua-text border-aqua/30">

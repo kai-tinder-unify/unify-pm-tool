@@ -37,8 +37,8 @@ const statusLabels: Record<string, string> = {
   in_progress: 'In progress',
   paused: 'Paused',
   blocked: 'Blocked',
-  // Single terminal state (renamed from the old `complete`).
-  closed: 'Closed',
+  // Single terminal state. Internal enum value stays `closed`; shown as "Completed".
+  closed: 'Completed',
 };
 
 const statusStyles: Record<string, { pill: string; dot: string }> = {

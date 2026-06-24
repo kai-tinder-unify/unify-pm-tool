@@ -7,6 +7,6 @@ const port = Number(process.env.PORT || 4000);
 const app = createApp();
 
 app.listen(port, () => {
-  console.log(`Ascend Hub API listening on http://localhost:${port}`);
+  console.log(`Ascend Command Center API listening on http://localhost:${port}`);
   startScheduler();
 });
