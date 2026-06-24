@@ -19,6 +19,7 @@ export const SETTING_KEYS = [
   // the multi-channel split is fully backward compatible with single-webhook setups.
   'teamsWebhookPings',
   'teamsWebhookDaily',
+  'teamsWebhookTaskCreated',
   'teamsPingEnabled',
   'briefingDistributionList',
   // Capacity (advisory client-engagement view). The three level→hours mappings and
@@ -60,6 +61,7 @@ const DEFAULTS: Record<SettingKey, string> = {
   // (teamsWebhookUrl), preserving the prior single-channel behaviour out of the box.
   teamsWebhookPings: '',
   teamsWebhookDaily: '',
+  teamsWebhookTaskCreated: '',
   teamsPingEnabled: 'false',
   briefingDistributionList: '',
   // Default client-hours baseline per engagement level, and the soft reference

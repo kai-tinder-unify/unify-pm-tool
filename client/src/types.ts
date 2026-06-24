@@ -112,6 +112,7 @@ export interface Settings {
   // channels. Backward compatible with single-webhook setups.
   teamsWebhookPings?: string;
   teamsWebhookDaily?: string;
+  teamsWebhookTaskCreated?: string;
   teamsPingEnabled?: string;
   briefingDistributionList?: string;
   // Capacity (advisory): level→client-hours mapping and the soft 40h reference line.

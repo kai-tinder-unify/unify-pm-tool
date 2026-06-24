@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../prisma';
 import { asyncHandler, requireAdmin, httpError } from '../middleware/auth';
-import { sendTeamsEvent } from '../services/notifications';
+import { notifyTeams, sendTeamsEvent } from '../services/notifications';
 
 const router = Router();
 
@@ -118,6 +118,25 @@ router.post(
       },
       include: taskInclude,
     });
+
+    // Announce brand-new top-level tasks to the configured Teams channel. Subtasks are
+    // a breakdown of an existing task (not new intake), so we skip them to avoid spamming
+    // the channel when one task is split into many pieces. Fire-and-forget: notifyTeams
+    // never throws and resolves on its own, so a Teams hiccup can't fail task creation.
+    if (!task.parentId) {
+      void notifyTeams({
+        type: 'task_created',
+        task: {
+          id: task.id,
+          title: task.title,
+          bucket: task.bucket,
+          priority: task.priority,
+          requestedBy: task.requestedBy,
+        },
+        createdBy: req.user!.name,
+      });
+    }
+
     res.status(201).json(task);
   }),
 );

@@ -31,6 +31,13 @@ export type TeamsEvent =
       task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
       recipients: { name: string; email: string | null }[];
       pingedBy: string;
+    }
+  | {
+      type: 'task_created';
+      task: { id: string; title: string; bucket: string; priority: string; requestedBy: string };
+      // Display name of whoever logged the task; informational only (no @mention — a
+      // creation announcement is a channel broadcast, not a ping at a specific person).
+      createdBy: string;
     };
 
 type EventType = TeamsEvent['type'];
@@ -39,6 +46,9 @@ type EventType = TeamsEvent['type'];
 const ENABLED_BY: Record<EventType, SettingKey | null> = {
   daily_checkin: 'teamsPingEnabled',
   task_ping: null,
+  // No separate toggle: the presence of its channel webhook is the on/off switch
+  // (blank teamsWebhookTaskCreated = disabled), like the manual reminder-pings channel.
+  task_created: null,
 };
 
 /**
@@ -49,6 +59,7 @@ const ENABLED_BY: Record<EventType, SettingKey | null> = {
 const WEBHOOK_BY: Record<EventType, SettingKey> = {
   daily_checkin: 'teamsWebhookDaily',
   task_ping: 'teamsWebhookPings',
+  task_created: 'teamsWebhookTaskCreated',
 };
 
 /** The Adaptive Card builder for each event. */
@@ -90,6 +101,20 @@ const BUILDERS: { [K in EventType]: (e: Extract<TeamsEvent, { type: K }>) => Ada
       entities,
     );
   },
+
+  task_created: (e) =>
+    card(
+      [
+        heading(`🆕 New task — ${e.task.title}`),
+        textBlock(`Logged by ${e.createdBy}.`, { wrap: true }),
+        facts([
+          ['Requested by', e.task.requestedBy],
+          ['Bucket', e.task.bucket],
+          ['Priority', titleCase(e.task.priority)],
+        ]),
+      ],
+      [openButton('Open task', `${APP_URL}/tasks/${e.task.id}`)],
+    ),
 };
 
 function buildCard(event: TeamsEvent): AdaptiveCard {
